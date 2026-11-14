@@ -1,6 +1,6 @@
 # Aarya: progress
 
-**Role:** story, data, deck, Devpost · **Task file:** [`docs/team/aarya.md`](../aarya.md) · **Your branch:** `feat/aarya-story`
+**Role:** story, data, deck, Devpost · **Task file:** [`docs/team/aarya.md`](../aarya.md) · **Your branch:** `feat/aarya`
 
 Update this table as you go (⬜ todo · 🟡 in progress · ✅ done · ⛔ blocked). Commit it with your work so the team
 can see where you are on `develop` after each merge.
@@ -22,7 +22,7 @@ can see where you are on `develop` after each merge.
 
 ## How to work
 
-- `feat/aarya-story` is your home branch, cut from `develop`. For each task you can work here, or cut a task branch
+- `feat/aarya` is your home branch, cut from `develop`. For each task you can work here, or cut a task branch
   (`feat/<ID>-<slug>`, names above) from `develop` and open a PR back into `develop`. Small PRs merge faster.
 - Keep in sync: `git fetch origin && git rebase origin/develop` before you open a PR.
 - Rules: [`AGENTS.md`](../../../AGENTS.md) · flow: [`CONTRIBUTING.md`](../../../CONTRIBUTING.md) · shared shapes: [`docs/CONTRACT.md`](../../CONTRACT.md).
