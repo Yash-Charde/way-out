@@ -1,5 +1,5 @@
-import { Shell } from "@/components/Shell";
+import { Console } from "./Console";
 
 export default function Page() {
-  return <Shell title="Dispatcher console" owner="Yash" task="D2-03" />;
+  return <Console />;
 }

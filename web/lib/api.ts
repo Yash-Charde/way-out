@@ -57,9 +57,28 @@ export const api = {
   closeRoad: (coordinates: [number, number][], source: "manual" | "hazard" | "sim" = "manual") =>
     call<Doc>("POST", "/roads/closures", { geometry: { type: "LineString", coordinates }, source }),
   // call floor (D1-04)
+  // simulation + dispatch (Yash, D2-02 / D2-04). Everything from /sim is simulated.
+  seed: (opts: { homes?: number; census?: "none" | "instant"; seed?: number } = {}) =>
+    call<Record<string, unknown>>(
+      "POST",
+      `/sim/seed?${new URLSearchParams(Object.entries(opts).map(([k, v]) => [k, String(v)])).toString()}`,
+    ),
+  census: () => call<{ requests: number }>("POST", "/sim/census"),
+  simControl: (standIns?: Partial<StandIns>) =>
+    standIns
+      ? call<{ standIns: StandIns }>("POST", "/sim/control", { standIns })
+      : call<{ standIns: StandIns }>("GET", "/sim/control"),
+  solve: (solver: "greedy" | "ortools" = "greedy") =>
+    call<{ version: number | null; proposals: number; unservable: number; solveMs: number }>(
+      "POST",
+      "/plans/solve",
+      { solver },
+    ),
   calls: (limit = 100) => call<CallSummary[]>("GET", `/calls?limit=${limit}`),
   call: (id: string) => call<CallDetail>("GET", `/calls/${encodeURIComponent(id)}`),
 };
+
+export type StandIns = { voice: boolean; drivers: boolean; approval: boolean };
 
 export type HouseholdRecord = {
   canLeave?: "yes" | "no" | "unsure";
