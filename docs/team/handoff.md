@@ -20,13 +20,16 @@
 
 ## Not done yet (needs accounts/keys)
 
-- [ ] Run `scripts/github-setup.sh` (needs `gh auth login` as a repo admin)
-- [ ] Vultr VM + DNS + `/opt/wayout/{.env,dev.env,staging.env,prod.env}` (see `infra/README.md`)
-- [ ] GitHub Environment secrets: `VULTR_HOST`, `VULTR_USER`, `VULTR_SSH_KEY`
-- [ ] Vercel project (root `web/`), branch domains, `NEXT_PUBLIC_API_URL` per env
-- [ ] Atlas cluster + users; `MONGODB_URI` in each env file
-- [ ] A call ringing a phone (D1-01)
-- [ ] Tag `v0.0`
+Reassigned Sat 3:45 PM while Prem is on shift (phone only). Steps: `infra/README.md` → Go-live checklist.
+
+- [x] Run `scripts/github-setup.sh` (Yash): branches, protection, environments, labels, 41 issues
+- [x] Deploy pipeline (#45, #46): builds and pushes the image; skips the VM step until the secrets exist
+- [ ] Atlas cluster + user, `MONGODB_URI` (**Aarya**, A-13)
+- [ ] Vultr VM + `bootstrap-vm.sh` + domain + DNS + deploy key (**Aarya**, A-13)
+- [ ] Repo secrets `VULTR_HOST`, `VULTR_USER`, `VULTR_SSH_KEY` (**Yash**, D2-10; repo owner only)
+- [ ] Vercel project (root `web/`), branch domains, `NEXT_PUBLIC_API_URL` per env (**Yash**, D2-10)
+- [ ] A call ringing a phone (**Deep**, D1-01)
+- [ ] Tag `v0.0` (**Yash** opens the PRs and tags; **Prem** approves and merges `main` from his phone)
 
 ## URLs
 

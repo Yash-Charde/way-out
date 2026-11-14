@@ -33,6 +33,12 @@
 
 **If you're running late:** do P-01 → P-02 → P-03 first. Hand P-04 (deploy) to Yash with notes. Yash can finish it at the 6 PM release.
 
+> **Reassigned Sat 3:45 PM** (Prem is on shift, phone only until 1 AM). The account half of P-04 and the `v0.0` tag moved:
+> - **Aarya → A-13**: Atlas, secrets file, Vultr VM + bootstrap, domain + DNS, deploy key.
+> - **Yash → D2-10**: the 3 repo secrets and Vercel (only the repo owner can do these), first deploys, smoke test, `v0.0` PRs + tag.
+> - **Prem**: approves and merges the `staging → main` PR from GitHub mobile (so only Prem still merges to `main`).
+> Code for P-04 is done (#45, #46). Steps: `infra/README.md` → Go-live checklist.
+
 ### Claude Code starter prompt (P-02 + P-03)
 ```
 Read README.md, AGENTS.md and docs/CONTRACT.md. On branch feat/P-02-api-skeleton, create the FastAPI

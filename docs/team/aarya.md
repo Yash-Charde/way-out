@@ -8,6 +8,8 @@
 
 ---
 
+> **Now (Sat 3:45 PM): do A-13 first.** You're ahead of schedule, and nothing can go live until it's done. Hand-off to Yash by **5:15 PM** so the app is online for M1 at 6 PM.
+
 ## Tasks
 
 | ID | Time | Task | Deliver |
@@ -25,6 +27,7 @@
 | **A-10** | 5:00–8:30 | **Rehearse ×3** with Prem (time each run; cut anything over 3:00). **Record the 2-minute video**: screen capture of the console + phone audio for the call (backup in case live calls fail at the expo) | Video uploaded (YouTube unlisted) |
 | **A-11** | 8:30–10:30 | Final deck, final Devpost with Prem: links (live app, repo, video), screenshots, **submit by 10:30** | Submitted ✅ |
 | **A-12** | 12:00–2:00 PM | Expo: you tell the story (first 20 seconds) and handle Q&A | |
+| **A-13** | **3:45–5:15 PM (now)** | **Go-live accounts** (taken over from Prem's P-04). Follow `infra/README.md` → Go-live checklist, steps 1–5 marked **Aarya**: Atlas M0 cluster + DB user + `0.0.0.0/0` → `MONGODB_URI`. `secrets.env` from `.env.example` (ask Deep and Yash for keys **in a private message, never the group chat**; `INTERNAL_TOKEN` = `openssl rand -hex 24`). Claim Vultr MLH credits → Ubuntu 24.04 VM, 2 vCPU / 4 GB → run `bootstrap-vm.sh`. Claim the GoDaddy Registry domain (MLH offer) → A records `api-dev`, `api-staging`, `api` → VM IP. Make the CI deploy key and add its public half to the VM | Private note to Yash: VM IP, domain, `wayout_deploy` private key. `dig +short api-dev.<domain>` shows the VM IP |
 
 ## Slide rules
 - One number per slide, huge, with the source in small text underneath.

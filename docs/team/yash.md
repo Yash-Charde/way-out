@@ -7,6 +7,8 @@
 
 Read first: `README.md`, `docs/ARCHITECTURE.md`, `AGENTS.md`, `docs/CONTRACT.md` §1–§3.
 
+> **Sat 3:45 PM: you also own D2-10 (go live)**, the repo-owner half of Prem's P-04. It takes about 15 minutes once Aarya hands over (target 5:15 PM). Only the repo owner can add Actions secrets or connect Vercel to a personal repo, so it has to be you. Keep going on D2-02 and D2-04 until then.
+
 ---
 
 ## UI direction (this is what judges remember)
@@ -34,6 +36,7 @@ Read first: `README.md`, `docs/ARCHITECTURE.md`, `AGENTS.md`, `docs/CONTRACT.md`
 | **D2-08** | 11:30–12:45 | **Driver safety.** `web/app/driver/safety.ts`: DeviceMotion impact > 2.5 g, then stillness → "Are you OK?" 20 s → `POST /vehicles/{id}/safety {state: man_down}`. Hold 2 s → SOS. Fire distance + trend banner. Warn if the route passes within 300 m of the fire front. Console: red safety toast + flying to the vehicle | Dropping the phone on a couch → MAN DOWN on the console with coordinates |
 | — | **1:00 AM** | **Feature freeze (M3).** Cut `v0.3` to staging with Deep | |
 | **D2-09** | 1:00–3:00 | **Impact simulation** (`api/sim/compare.py`, analysis, not product). Same households, fire, fleet, 50 seeds: **today** (≈55% of riders call 911 ~20 min before fire, first come first served, nearest unit, one household per trip) vs **Way Out greedy** vs **OR-Tools** (P1: pickup-and-delivery with time windows + capacity dims, 3 s limit). Output median + 5th–95th percentile of "boarded ≥ 10 min before fire" → `data/sim-results.json` + chart for Aarya. Assumptions agreed with Aarya and written in the file | Aarya has the headline number with a range |
+| **D2-10** | **~5:15 PM, 15 min** (after Aarya's A-13) | **Go live** (from Prem's P-04). `infra/README.md` → Go-live checklist, steps 5–9 marked **Yash**: repo secrets `VULTR_HOST`, `VULTR_USER`, `VULTR_SSH_KEY` → Actions → **deploy** → Run for `dev`, `staging`, `prod`. Vercel: import repo, root `web`, `NEXT_PUBLIC_API_URL` per branch, domains `dev.` / `staging.` / `app.`. Run `scripts/smoke.py --domain <d>`. **`v0.0`**: PR `develop → staging` (merge), PR `staging → main` (Prem approves and merges from his phone), then `git tag v0.0 origin/main && git push origin v0.0` | `curl https://api-dev.<domain>/health` shows `env: dev` and the sha. Smoke is green on all three. Tag `v0.0` exists |
 | D2-10 | 3:00–5:00 | Fix what Prem's end-to-end run finds. Polish the console (spacing, motion, empty states) | |
 
 ## Claude Code starter prompt (D2-01 + D2-03)

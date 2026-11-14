@@ -60,7 +60,7 @@ Closes #
 
 | Tag | When | Contains | Goes to |
 |---|---|---|---|
-| `v0.0` | 2 PM | foundation: skeleton, core rules, 3 envs | `staging` + `main` (Prem) |
+| `v0.0` | ~5:30 PM (moved) | foundation: skeleton, core rules, 3 envs | `staging` + `main` (Yash opens the PRs, Prem merges `main` from mobile; see D2-10) |
 | `v0.1` | M1, 6 PM | call → record → request on map | `staging` |
 | `v0.2` | M2, 10 PM | approve → accept → callback → closure → reassign | `staging` |
 | `v0.3` | M3, 1 AM | fire map, SOS, dedupe, /system | `staging` |
