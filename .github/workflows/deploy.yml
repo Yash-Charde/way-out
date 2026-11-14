@@ -22,9 +22,6 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/wayout-api
-
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -33,6 +30,7 @@ jobs:
       ghenv: ${{ steps.p.outputs.ghenv }}
       tag: ${{ steps.p.outputs.tag }}
       build: ${{ steps.p.outputs.build }}
+      image: ${{ steps.p.outputs.image }}
     steps:
       - id: p
         run: |
@@ -50,6 +48,8 @@ jobs:
           echo "ghenv=$GHENV" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          # Image names must be lowercase; the owner is "Yash-Charde".
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/wayout-api" >> "$GITHUB_OUTPUT"
 
   build:
     needs: plan
@@ -72,8 +72,8 @@ jobs:
           push: true
           build-args: GIT_SHA=${{ needs.plan.outputs.tag }}
           tags: |
-            ${{ env.IMAGE }}:${{ needs.plan.outputs.tag }}
-            ${{ env.IMAGE }}:${{ needs.plan.outputs.env }}
+            ${{ needs.plan.outputs.image }}:${{ needs.plan.outputs.tag }}
+            ${{ needs.plan.outputs.image }}:${{ needs.plan.outputs.env }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

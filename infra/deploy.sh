@@ -9,7 +9,8 @@ TAG="${2:?image tag}"
 case "$ENV_NAME" in dev|staging|prod) ;; *) echo "bad env: $ENV_NAME" >&2; exit 1 ;; esac
 
 VAR="$(echo "$ENV_NAME" | tr '[:lower:]' '[:upper:]')_TAG"
-touch .env "$ENV_NAME.env"
+# compose loads every service, so every env file must exist even if empty
+touch .env dev.env staging.env prod.env
 if grep -q "^${VAR}=" .env; then sed -i "s|^${VAR}=.*|${VAR}=${TAG}|" .env; else echo "${VAR}=${TAG}" >> .env; fi
 
 docker compose pull "api-$ENV_NAME"
