@@ -86,8 +86,23 @@ jobs:
       contents: read
       packages: read
     steps:
+      # Until the Vultr VM exists (P-04 accounts), skip instead of failing: the image is still built and pushed.
+      - name: VM configured?
+        id: vm
+        env:
+          HOST: ${{ secrets.VULTR_HOST }}
+          KEY: ${{ secrets.VULTR_SSH_KEY }}
+        run: |
+          if [ -n "$HOST" ] && [ -n "$KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy skipped::VULTR_HOST / VULTR_SSH_KEY not set yet. Image ${{ needs.plan.outputs.image }}:${{ needs.plan.outputs.tag }} is built; add the secrets (infra/README.md, Go-live checklist) and re-run."
+          fi
       - uses: actions/checkout@v4
+        if: steps.vm.outputs.ready == 'true'
       - name: Copy compose files to the VM
+        if: steps.vm.outputs.ready == 'true'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VULTR_HOST }}
@@ -97,6 +112,7 @@ jobs:
           target: /opt/wayout
           strip_components: 1
       - name: Compose up
+        if: steps.vm.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.2.0
         env:
           GHCR_USER: ${{ github.actor }}
