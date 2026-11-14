@@ -1,4 +1,5 @@
-# Way Out API. Build from the api/ folder:  docker build -t wayout-api --build-arg GIT_SHA=$(git rev-parse --short HEAD) api
+# Way Out API. Build from the repo root:
+#   docker build -t wayout-api --build-context data=data --build-arg GIT_SHA=$(git rev-parse --short HEAD) api
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
@@ -9,6 +10,8 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY . .
+# Scenario + personas for /sim/seed (named build context `data` = the repo's data/ folder).
+COPY --from=data . /app/data
 
 ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA} PATH="/app/api/.venv/bin:${PATH}"

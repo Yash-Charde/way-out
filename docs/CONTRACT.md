@@ -20,6 +20,7 @@ DB name = `wayout_${ENV}` (`dev`, `staging`, `prod`). All geometry is GeoJSON. I
   "phone": "+1...",               // E.164; stand-ins use fake numbers
   "language": "en",               // en | es
   "simulated": true,              // stand-in vs real demo phone
+  "personaId": "p01",             // simulated homes only: data/personas.json script + truth (added D2-02)
   "record": {                     // written ONLY by the agent (PATCH /households/{id}/record)
     "canLeave": "yes|no|unsure",
     "peopleCount": 2,
@@ -88,7 +89,8 @@ received ──approve──► approved ──driver accepts──► driver_ac
   "offeredAt": "ISO", "expiresAt": "ISO", "respondedAt": "ISO",
   "announcedEtaMinutes": 7.0,    // last ETA the resident was told (en_route)
   "announcedEtaSeq": 1,          // en_route announcements so far
-  "completedAt": "ISO"
+  "completedAt": "ISO",
+  "late": false                  // solver: no vehicle makes the deadline; still offered (added D2-04)
 }
 ```
 - **Atomic accept:** `find_one_and_update({_id, status: "offered"}, {$set: {status: "accepted", ...}})`. If it returns `None`, respond `{"result": "changed"}`. Offers expire 2 min after `offeredAt`.
@@ -107,7 +109,7 @@ received ──approve──► approved ──driver accepts──► driver_ac
 `{ _id, name, county, status: ready|set|go|clear, polygon, source: tinyfish|manual, sourceUrl, updatedAt }`
 
 ### Also
-`shelters` (location, capacity), `roadClosures` (LineString, source, at), `auditLog` (kind, message, refs, at), `plans` (version, solver, solveMs, objective, changedOffers).
+`shelters` (location, capacity), `roadClosures` (LineString, source, at), `auditLog` (kind, message, refs, at), `plans` (version, solver, solveMs, objective, changedOffers; D2-04 adds proposals, unservable, unreachableCommitted, requested), `simControl` (one doc `_id: "sim"`, `standIns: {voice, drivers, approval}`; added D2-02).
 
 ### Tiger Data (Postgres / Timescale hypertables)
 `vehicle_positions(time, vehicle_id, lon, lat, speed)` · `fire_detections(time, lon, lat, frp, source)` · `call_turns(time, call_id, latency_ms, guard_blocked)` · `kpis(time, name, value)`
@@ -131,7 +133,7 @@ Auth: dashboard and driver endpoints are open in demo mode. `/agent/*` and webho
 | POST | `/requests/{id}/escalate` | `{reason}` | Prem |
 | POST | `/requests/{id}/close` | `{reason: resident_left\|duplicate\|dispatcher}` → request (closed). No callback | Prem (core) |
 | POST | `/plans/solve` | `{solver: greedy\|ortools}` → plan | Yash |
-| GET | `/plans/latest` | → plan + proposed assignments | Yash |
+| GET | `/plans/latest` | → newest plan + every live `proposed`/`offered` assignment (any version), by ETA | Yash |
 | POST | `/assignments/{id}/approve` | → assignment | Prem (core) |
 | POST | `/assignments/{id}/accept` | → `{result: accepted\|changed}` | Prem (core) |
 | POST | `/assignments/{id}/decline` | → assignment | Prem (core) |
@@ -144,8 +146,9 @@ Auth: dashboard and driver endpoints are open in demo mode. `/agent/*` and webho
 | GET | `/hazards` | → fire front, detections, deadlines | Yash |
 | POST | `/hazards/photo` | multipart image + lon/lat → Gemini vision → hazard | Yash (P2) |
 | POST | `/zones/{id}/status` | `{status, sourceUrl}` (TinyFish webhook) → starts dialing at `set` | Deep |
-| POST | `/sim/seed` | `?scenario=pocket-fire` → seeds 200 homes, 8 vehicles, 2 shelters | Yash |
-| POST | `/sim/control` | `{standIns: {voice, drivers, approval}: bool}` | Yash |
+| POST | `/sim/seed` | `?scenario=pocket-fire&homes=200&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world: 200 homes, 8 vehicles, 2 shelters, 2 zones. Real households stay | Yash |
+| POST | `/sim/census` | answer every unreached simulated home from its persona (no calls) → `{requests}` *(added D2-02)* | Yash |
+| POST / GET | `/sim/control` | `{standIns: {voice, drivers, approval}: bool}` (partial updates) → current `standIns` | Yash |
 | GET | `/system/metrics` | → latency p50/p95, honesty, accuracy, dispatch results (`data/sim-results.json` from Yash) | Deep |
 | GET | `/health` | → `{ok, env, version, gitSha}` | Prem |
 

@@ -6,7 +6,7 @@ name: deploy
 on:
   push:
     branches: [develop, staging, main]
-    paths: ["api/**", "infra/**", ".github/workflows/deploy.yml"]
+    paths: ["data/**", "api/**", "infra/**", ".github/workflows/deploy.yml"]
   workflow_dispatch:
     inputs:
       env:
@@ -69,6 +69,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: api
+          build-contexts: data=data  # Aarya's scenario + personas for /sim/seed → /app/data
           push: true
           build-args: GIT_SHA=${{ needs.plan.outputs.tag }}
           tags: |

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from api import audit
 from api.core.db import get_db
 from api.core.util import new_id, utcnow
+from api.dispatch.loop import request_replan
 from api.models import LineString
 from api.routes._util import out
 
@@ -21,10 +22,11 @@ class ClosureBody(BaseModel):
 
 @router.post("/closures")
 async def add_closure(body: ClosureBody) -> dict:
-    """Stores the closure. TODO(D2-06): drop graph edges, re-plan now, revoke unreachable pickups
-    with api.assignments.revoke() (only that pickup; the rest of the run stays frozen)."""
+    """Stores the closure and re-plans now. The solver stops routing through it (api/sim/geo.py).
+    TODO(D2-06): revoke accepted pickups that became unreachable with api.assignments.revoke()."""
     db = get_db()
     doc = {"_id": new_id("rc"), "geometry": body.geometry.model_dump(), "source": body.source, "at": utcnow()}
     await db.roadClosures.insert_one(doc)
     await audit.log(db, "road_closed", body.source, closureId=doc["_id"])
+    request_replan()
     return out(doc)

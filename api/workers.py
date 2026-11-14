@@ -12,6 +12,7 @@ import logging
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api import assignments
+from api.dispatch import loop as dispatch_loop
 from api.live import WATCHED, watch_collection
 
 log = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ async def expiry_loop(db: AsyncIOMotorDatabase, every_s: float = 5) -> None:
 def start(db: AsyncIOMotorDatabase) -> list[asyncio.Task]:
     tasks = [asyncio.create_task(expiry_loop(db), name="offer-expiry")]
     tasks += [asyncio.create_task(watch_collection(db, c), name=f"watch-{c}") for c in WATCHED]
+    tasks.append(asyncio.create_task(dispatch_loop.run(db), name="solver-loop"))  # D2-04
     return tasks
 
 
