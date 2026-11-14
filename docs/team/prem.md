@@ -62,8 +62,8 @@ Optional, if you have your phone: glance at team chat at **6 PM (M1)** and **10 
 | **P-11** | 1:45–4:30 | Bug-bash lead: triage, review and merge `fix/*` PRs, keep `develop` green. Only `demo-blocker` and P1 fixes get in after 1 AM |
 | **P-12** | 4:30–5:00 | **Release `v1.0`**: PR `develop → staging`, smoke test, PR `staging → main`. Production smoke test with 2 real phones. Freeze |
 | **P-13** | 5:00–8:30 | Rehearse the 3-minute demo ×3 with Aarya (you or Yash plays the driver phone). Fix only what breaks the demo. Record the backup video of a clean run |
-| **P-14** | 8:30–10:30 | Devpost with Aarya: links (live app, repo, video), team, "built with", AI disclosure, credits. **Submit by 10:30 (not a draft).** Hard deadline 11:00 |
-| **P-15** | 12:00–2:00 PM | Expo: run the console. Check `/health` on prod before every judge visit |
+| **P-14** | 8:30–10:30 | Devpost with Aarya: links (live app, repo, video), team, "built with", AI disclosure, credits, prize opt-ins (README → SunHacks rules). **Aarya is the only editor; you review** (slides: don't edit at the same time). **Complete by 10:00, submitted (not a draft) by 10:30.** Hard deadline 11:00, no late submissions. **Code freeze 10:30; no pushes after 11:00** (MLH: no commits after hacking ends) |
+| **P-15** | 12:00–2:00 PM | Expo: run the console. Check `/health` on prod before every judge visit. **No commits after 11:00 AM**: if something breaks, restart or re-seed, don't patch. Demo the product, not slides (3 min + 2 min Q&A) |
 
 ## Coordination checklist
 - [ ] Standups (5 min): 11:10 AM, 2:00 PM (handoff), 6:00 PM (M1, without you), 10:00 PM (M2, without you), 1:00 AM, 5:00 AM, 9:00 AM

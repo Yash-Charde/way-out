@@ -70,6 +70,8 @@ Deep and Yash cut `v0.1`–`v0.3` together (`develop → staging` PR, one approv
 
 After `v1.0`, only `fix/*` PRs, each approved by Prem.
 
+**Hard stop (MLH rule from the opening slides): no commits to any branch after hacking ends at 11:00 AM Sunday.** Code freeze at 10:30 AM. At the expo, fix problems by restarting or re-seeding, never by pushing.
+
 ## Secrets
 
 Never commit keys. Use `.env` locally (git-ignored), GitHub Environments in CI, and `/opt/wayout/<env>.env` on Vultr. If a key is ever pasted in chat or committed, rotate it.

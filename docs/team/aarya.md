@@ -10,6 +10,12 @@
 
 > **Now (Sat 3:45 PM): do A-13 first.** You're ahead of schedule, and nothing can go live until it's done. Hand-off to Yash by **5:15 PM** so the app is online for M1 at 6 PM.
 
+> **From the opening slides (4:20 PM):**
+> - **5:30–6:30 PM: go to the Amazon Bedrock workshop** right after A-13. Get the AWS account/credits and Bedrock access for Claude, and send the keys to Deep **privately** (D1-10, for **Best Use of AWS**).
+> - **"Your hack, not your slides, is judged."** At the expo: the story in 20 seconds (one slide at most), then the live product. The full deck is for the video and Devpost.
+> - Add the **Future of Work** angle (README → Tech stack) to the deck and Devpost: one slide or line for JFF Ventures.
+> - **Devpost: you're the only editor.** Prem reviews but doesn't edit at the same time. Opt into: JFF Future of Work, Best Use of AWS, Best Use of TinyFish, and the MLH prizes (Gemini, MongoDB, Tiger Data, Vultr, GoDaddy Registry). **Submit complete by 10:00 AM**, hard deadline 11:00, no late submissions.
+
 ## Tasks
 
 | ID | Time | Task | Deliver |
