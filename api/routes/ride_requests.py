@@ -1,8 +1,12 @@
-"""GET /requests/open, POST /requests/{id}/escalate. Status itself only changes in api/requests.py."""
+"""GET /requests/open, POST /requests/{id}/escalate, POST /requests/{id}/close.
+
+Status itself only changes in api/requests.py (close goes through api.assignments.close_request).
+"""
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from api import assignments as asg
 from api import audit
 from api import requests as rq
 from api.core.db import get_db
@@ -42,3 +46,18 @@ async def escalate(request_id: str, body: EscalateBody) -> dict:
         raise HTTPException(404, "request not found")
     await audit.log(db, "request_escalated", body.reason, requestId=request_id)
     return out(await db.requests.find_one({"_id": request_id}))
+
+
+class CloseBody(BaseModel):
+    reason: str  # resident_left | duplicate | dispatcher
+
+
+@router.post("/requests/{request_id}/close")
+async def close(request_id: str, body: CloseBody) -> dict:
+    """No ride needed any more. Live offers are withdrawn, an accepted pickup is dropped. No callback."""
+    try:
+        return out(await asg.close_request(get_db(), request_id, reason=body.reason))
+    except rq.RequestNotFound as e:
+        raise HTTPException(404, "request not found") from e
+    except rq.RequestError as e:
+        raise HTTPException(409, str(e)) from e

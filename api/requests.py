@@ -3,10 +3,13 @@
 Legal moves (CONTRACT §1, ARCHITECTURE §7.1):
 
     received ──approve──► approved ──driver accepts──► driver_accepted ──► en_route ──► arrived ──► closed
-       ▲                     │                                │
+       ▲                     │                                │    └────────(at the door)───►┘
        └ decline / expire / ─┘                 no route in time / driver cancels
          replaced (silent)                                    ▼
                                                  reassigning ──new accept──► driver_accepted
+
+    Any open status ──► closed  (resident left on their own, duplicate, or dispatcher closes).
+    Only api.assignments.close_request() takes that exit: it also settles the request's offers.
 
 Anything else raises IllegalTransition. Every move (and every rejected move) goes to the audit log.
 Moves are compare-and-set on (status, version), so two writers can't both win.
@@ -23,10 +26,10 @@ from api.models import Need, RequestStatus
 
 LEGAL: dict[str, frozenset[str]] = {
     "received": frozenset({"approved", "closed"}),
-    "approved": frozenset({"received", "driver_accepted"}),
-    "driver_accepted": frozenset({"en_route", "reassigning", "arrived"}),
-    "en_route": frozenset({"reassigning", "arrived"}),
-    "reassigning": frozenset({"driver_accepted"}),
+    "approved": frozenset({"received", "driver_accepted", "closed"}),
+    "driver_accepted": frozenset({"en_route", "reassigning", "arrived", "closed"}),
+    "en_route": frozenset({"reassigning", "arrived", "closed"}),
+    "reassigning": frozenset({"driver_accepted", "closed"}),
     "arrived": frozenset({"closed"}),
     "closed": frozenset(),
 }

@@ -1,8 +1,10 @@
 """Offer endpoints. Logic (atomic accept, expiry, revoke) lives in api/assignments.py."""
 
 from collections.abc import Awaitable
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from api import assignments as asg
 from api import requests as rq
@@ -43,3 +45,14 @@ async def decline(assignment_id: str) -> dict:
 async def cancel(assignment_id: str) -> dict:
     """Driver can't make it → revoke this one pickup → request reassigning → resident is told."""
     return await _run(asg.revoke(get_db(), assignment_id, reason="driver cancelled"))
+
+
+class ProgressBody(BaseModel):
+    status: Literal["en_route", "arrived", "completed"]
+    etaMinutes: float | None = Field(default=None, ge=0)
+
+
+@router.post("/{assignment_id}/progress")
+async def progress(assignment_id: str, body: ProgressBody) -> dict:
+    """Driver app / stand-in drivers: en_route (+ETA, repeat to update), arrived ("Picked up"), completed."""
+    return await _run(asg.progress(get_db(), assignment_id, body.status, eta_minutes=body.etaMinutes))

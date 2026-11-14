@@ -43,6 +43,12 @@ export const api = {
   ),
   decline: (id: string) => call<Doc>("POST", `/assignments/${id}/decline`),
   cancel: (id: string) => call<Doc>("POST", `/assignments/${id}/cancel`),
+  /** en_route (+etaMinutes, repeat to update) → arrived ("Picked up") → completed (at shelter). */
+  progress: (id: string, status: "en_route" | "arrived" | "completed", etaMinutes?: number) =>
+    call<Doc>("POST", `/assignments/${id}/progress`, { status, etaMinutes }),
+  /** No ride needed any more (resident left, duplicate). Withdraws offers; no resident callback. */
+  closeRequest: (id: string, reason: "resident_left" | "duplicate" | "dispatcher") =>
+    call<Doc>("POST", `/requests/${id}/close`, { reason }),
 
   position: (id: string, p: { lon: number; lat: number; heading?: number; speedMps?: number }) =>
     call<{ ok: true }>("POST", `/vehicles/${id}/position`, p),

@@ -66,16 +66,20 @@ class Assignment(Doc):
     planVersion: int
     stopOrder: int = 0
     etaMinutes: float | None = None
+    announcedEtaMinutes: float | None = None  # last ETA the resident was told
+    announcedEtaSeq: int = 0  # en_route announcements so far (callback key suffix)
     status: AssignmentStatus = "proposed"
     offeredAt: ISO | None = None
     expiresAt: ISO | None = None
     respondedAt: ISO | None = None
+    completedAt: ISO | None = None
 
 
 class Callback(Doc):
     requestId: str
     assignmentId: str
     announcedStatus: RequestStatus
+    etaMinutes: float | None = None  # ETA that triggered an en_route callback (worker re-reads the live one)
     state: Literal["queued", "placed", "played", "unanswered"] = "queued"
     key: str
     createdAt: ISO | None = None

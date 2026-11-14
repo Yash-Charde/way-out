@@ -36,8 +36,16 @@
 | staging | `https://staging.<domain>` | `https://api-staging.<domain>/health` |
 | prod | `https://app.<domain>` | `https://api.<domain>/health` |
 
-## Open contract questions
+## Contract questions (resolved after v0.0, branch `feat/P-03-contract-followups`)
 
-1. **`en_route` callbacks and the idempotency key.** The key is `request:assignment:status`, so a second ETA change (> 3 min) on the same assignment collides with the first. Proposal: add an ETA bucket to the key for `en_route` only (`...:en_route:<etaMinute>`).
-2. **Closing a reassigning request.** The legal moves have no `reassigning → closed`. If a resident leaves on their own mid-reassignment, we can't close the request. Add it?
-3. **Python package path.** The API is the package `api`, run from the repo root, so `api/requests.py` doesn't shadow the `requests` library (Google SDKs import it). Deep's CLI becomes `uv run --project api python -m api.agent.chat`.
+1. **`en_route` callbacks and the idempotency key.** ✅ The `en_route` key ends with an announcement counter: `requestId:assignmentId:en_route:<n>` (`announcedEtaSeq` on the assignment, moved by compare-and-set). Not the ETA minute, because 10 → 14 → 10 would collide with the first key. The 3-minute rule lives in core (`api/callbacks.py`), so callers just report ETAs.
+2. **Closing a reassigning request.** ✅ Any open request can be closed through `POST /requests/{id}/close` (resident left, duplicate, dispatcher). It withdraws live offers silently and revokes an accepted pickup without calling the resident. Deep: call it when a resident says they already left (`role: left`). Dedupe can use it for `dupOf`.
+3. **Python package path.** As is: the API is the package `api`, run from the repo root. Deep's CLI is `uv run --project api python -m api.agent.chat`.
+
+## New core endpoint for the driver app (Yash, D2-05)
+
+`POST /assignments/{id}/progress` `{status: en_route|arrived|completed, etaMinutes?}`
+
+- `en_route` + `etaMinutes`: send when this pickup is the driver's next stop, then every few seconds with the new ETA. Core decides when the resident hears it (first report, then changes > 3 min).
+- `arrived`: the "Picked up" button. The resident gets the "Your driver has arrived" callback.
+- `completed`: dropped at the shelter. Request closed, vehicle goes back to idle when it has no other stops.
