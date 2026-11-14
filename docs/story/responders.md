@@ -1,9 +1,29 @@
 # Responders (A-04)
 
-> **Status:** interview kit ready, interviews **not done yet**. Aarya fills in the "Notes" section after each conversation.
-> Tell Deep and Yash about any product change **by 6 PM**.
+> **Status (2026-11-14):** no in-person interview was done. For the hackathon we use **published, on-the-record quotes** from responders and officials, each cited in `sources.md`. On slides and Devpost they are labeled as published quotes, **never** as "we interviewed". If someone does talk to a responder later, add it under "Interview kit" and swap the quote.
 
-## Who to contact (today is Saturday, so go in person first)
+## Published voices we can use
+
+| Use | Quote (exact, short) | Who | Source |
+|---|---|---|---|
+| **Main quote (slide 3 + Devpost)** | "By the time my staff could make those calls, the fire had already run…" | Shelby Boston, Butte County social services director, on phoning ~1,500 in-home-care clients during the Camp Fire | F-23 |
+| Arizona color (slide 2 or demo) | "It's hot, it's dry, it's windy, it's difficult access" | Jayson Coil, assistant fire chief, Sedona Fire, on the Pocket Fire | F-24 |
+
+Same source article as the main quote (paraphrase only, don't quote): Butte County's emergency manager told residents to get to know their neighbors because they may need each other, and said planned pickup points were "in the making" but the fire moved too fast. That's the case for our neighbor drivers.
+
+## The gap we fix (from the after-action record)
+
+**The list exists, but the calls happen too late.** Butte County had the names. Staff started dialing that morning and had to stop because the fire was faster than one person per phone (F-08, F-23). In Eaton, the 911 system itself was overwhelmed (F-15). In LA, police dispatchers at one point routed 911 calls through a single captain's personal cellphone (F-25).
+
+**What Way Out changes:** every home is called at once the moment the zone changes status, and the person who can't leave goes straight onto a dispatcher's map with a deadline. Nobody waits in the 911 queue to say "my husband is in a power chair".
+
+**A gap we still have (honest, for Q&A):** crews also need access details (stairs, gate codes, where in the house). Our call script doesn't ask for them yet. That's a "what's next" item.
+
+---
+
+## Interview kit (optional, if anyone talks to a responder)
+
+### Who to contact
 
 | Priority | Who | How | Notes |
 |---|---|---|---|
@@ -14,13 +34,13 @@
 
 Never call 911 or a dispatch line for this.
 
-## What to say (30 seconds)
+### What to say (30 seconds)
 
 > "Hi, I'm Aarya, a CS grad student at ASU. I'm at SunHacks this weekend building a tool for wildfire evacuations: when a zone goes to SET, it calls every home, finds out who can't leave on their own, and matches them to a vehicle that can get them. A dispatcher approves every match. Could I ask you five quick questions? If you're OK with it, I'd like to quote one line with your name and role, and I'll show you exactly what I'd quote before I use it."
 
 **Permission, every time:** "Can I quote that, with your name and role?" Write down their exact answer. If they say no, or "not my name", use the role only ("a Tempe fire captain") or don't use it.
 
-## The five questions
+### The five questions
 
 1. In an evacuation, **how do you find the people who can't leave on their own?** (Lists? Door knocks? Calls from family?)
 2. **What breaks first: vehicles or information?** (Do you run out of rigs, or do you not know where the people are?)
@@ -33,7 +53,7 @@ Follow-ups if there's time:
 - "Who should approve a pickup: dispatch, the IC, or nobody (driver just accepts)?"
 - "Is there anything here that would get someone hurt?"
 
-## Notes (fill in)
+### Notes (fill in)
 
 | Field | Answer |
 |---|---|
@@ -49,7 +69,7 @@ Follow-ups if there's time:
 | **One gap we should fix** | |
 | Product change to tell Deep/Yash (by 6 PM) | |
 
-## What we're listening for (maps to product decisions)
+### What we're listening for (maps to product decisions)
 
 | If they say… | Then we… |
 |---|---|

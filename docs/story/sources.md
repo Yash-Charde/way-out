@@ -51,6 +51,14 @@ Every number on a slide or on Devpost comes from this file. Format: **ID · clai
 | F-14 | LA Fire Dept 911 volume during the fires | 3,624 calls in 24 hours vs. an average of "just under 1,500" | LAFD Chief Kristin Crowley, press conference (transcript) | 2025-01-08 | https://rev.com/transcripts/california-wildfire-press-conference |
 | F-15 | Independent review: Eaton Fire overwhelmed 911 | "the speed and scale of the event overwhelmed the 911 system" (UL Research Institutes / FSRI) | NBC San Diego | 2026 | https://www.nbcsandiego.com/news/national-international/poor-communication-emergency-response-la-fires/4081860/ |
 
+## E1. Published responder quotes (A-04)
+
+| ID | Claim | Exact figure / wording | Outlet | Date | Link |
+|---|---|---|---|---|---|
+| F-23 | Butte County social services director on phoning in-home-care clients during the Camp Fire | "By the time my staff could make those calls, the fire had already run…" (Shelby Boston) | Sacramento Bee (via GovTech) | 2018-12 | https://govtech.com/em/preparedness/-many-of-the-dead-in-camp-fire-were-disabled-could-they-have-been-saved.html |
+| F-24 | Sedona Fire on Pocket Fire conditions | "It's hot, it's dry, it's windy, it's difficult access" (Jayson Coil, assistant fire chief) | AZFamily / KOLD | 2026-06-20 | https://www.kold.com/2026/06/20/pocket-fire-burns-500-acres-north-sedona-sparks-evacuations/ |
+| F-25 | During the LA fires, police dispatchers temporarily routed 911 calls through a single captain's personal cellphone (UL Research Institutes / FSRI review) | — | NBC Bay Area | 2026 | https://www.nbcbayarea.com/news/national-international/poor-communication-emergency-response-la-fires/4152250/ |
+
 ## E2. Regulation (for Q&A)
 
 | ID | Claim | Exact figure / wording | Outlet | Date | Link |
