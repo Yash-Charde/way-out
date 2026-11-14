@@ -27,6 +27,6 @@ can see where you are on `develop` after each merge.
 
 ## Notes
 
-- **4:45 PM Sat:** #51 = D2-02 + D2-04 + a list console, so M1 works without the map. 479 tests green.
+- **4:20 PM Sat:** #51 = D2-02 + D2-04 + a list console, so M1 works without the map. 479 tests green.
 - Walter Ng (p04, bedbound) is always `unservable`: no stretcher vehicle in the fleet. Decide with Aarya.
 - For Deep (flagged in #51, tell him in chat): persona p34 (can leave, no car) never gets a request from `flow.role_for()`.
