@@ -32,9 +32,11 @@ Way Out is built for wildfire evacuations. When a zone goes to **SET**, it calls
 
 > **Aarya owns this section.** Every number needs a primary source in `docs/story/sources.md` before it goes on a slide.
 
-- In wildfires, the people who die are mostly older adults and people who can't leave on their own. Lahaina (2023), Camp Fire (2018), Eaton (2025). **TODO Aarya:** verify counts and age data from primary sources.
-- Disability registries exist, but in a disaster nobody has the staff to call through them in time.
-- Arizona this year: the **Pocket Fire** (June 2026) forced evacuations in **Oak Creek Canyon** north of Sedona, and **SR 89A**, the canyon's main road, was closed. That gives us one canyon and one main road out. **TODO Aarya:** InciWeb timeline, number of homes, and census age/disability rates for the canyon (we expect an older population; confirm it).
+- **In wildfires, the people who die are mostly older adults and people who can't leave on their own.** Camp Fire (2018): 53 of 69 identified victims (77%) were over 65 (F-05). Lahaina (2023): more than two-thirds of the 100 dead were 60 or older (F-11). Eaton (2025): 19 dead, average age 77, 18 of them in West Altadena (F-12).
+- **Most people with disabilities can't evacuate quickly alone.** In a UN survey of 5,717 people with disabilities, only 20.6% said they could evacuate immediately without difficulty; with more warning time that rises to 38% (F-16).
+- **Registries exist, but nobody has the staff to call through them in time.** Butte County had 4,000 people on its special-needs registry and staff started phoning ~1,500 in-home-care clients the morning of the Camp Fire, then had to abandon the calls (F-07, F-08). After Hurricane Beryl, Harris County reached 605 of 1,030 registrants (F-18).
+- **911 overloads.** LAFD took 3,624 911 calls in 24 hours during the January 2025 fires, about 2.4× normal (F-14).
+- **Arizona this year: the Pocket Fire.** Reported 5:01 p.m. June 19, 2026, 7 miles north of Sedona; the cause is officially **undetermined** (S-02). Oak Creek Canyon (zones 14 and 15) went **straight to GO about two hours later**, and **SR 89A**, the canyon's main road, was closed for 25 days (S-02, S-03, S-06). It burned 27,393 acres; no homes were lost (S-02). The canyon (Census Tract 16.02) has 650 households; **about half the residents are 65+** (vs 18.6% in Arizona) and **about 1 in 3 households is a person 65+ living alone** (C-01). Details: `docs/story/population.md`, `data/scenario.json`.
 - **The gap:** 911 dispatch is the bottleneck. Calls queue up. The person in a wheelchair waits in the same line as everyone else. Nothing connects them to the van or the neighbor down the street who could take them.
 
 ## What Way Out does
