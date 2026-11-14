@@ -100,17 +100,59 @@ def test_board_minutes_follow_impact_sheet():
 
 # ── loop against the database ────────────────────────────────────────────────
 async def test_solve_proposes_for_every_reachable_rider(db):
+    """Holds for any personas: every request gets a driver, or no vehicle can carry it and it's flagged."""
     out = await seed.seed(db, homes=120, census="instant", rng_seed=5)
     res = await loop.solve_once(db)
-    assert res["version"] == 1 and res["created"] == out["requests"] == res["proposals"]
-    assert await db.assignments.count_documents({"status": "proposed"}) == out["requests"]
+    assert res["version"] == 1 and res["created"] == res["proposals"] > 0
     plan = await db.plans.find_one({"version": 1})
     assert plan["solver"] == "greedy" and plan["solveMs"] >= 0
+
+    fleet = [v async for v in db.vehicles.find({})]
+
+    def any_vehicle_fits(need: dict) -> bool:
+        n = greedy.Need.of(need)
+        return any(
+            greedy.Vehicle(
+                id=v["_id"],
+                loc=(0, 0),
+                seats=v["capacity"]["seats"],
+                wheelchair=v["capacity"]["wheelchair"],
+                stretcher=v["capacity"]["stretcher"],
+                crew=v["crew"],
+                lift=v["lift"],
+            ).fits(n)
+            for v in fleet
+        )
+
+    proposed = {a["requestId"] async for a in db.assignments.find({"status": "proposed"})}
+    reqs = [r async for r in db.requests.find({})]
+    assert len(reqs) == out["requests"]
+    for r in reqs:
+        if r["_id"] in proposed:
+            continue
+        assert r["escalation"] == "unservable", r
+        assert not any_vehicle_fits(r["need"]), r  # left out only when nothing in the fleet can carry them
+    assert len(proposed) + sum(r["_id"] not in proposed for r in reqs) == out["requests"]
+
     # heavy needs only ever go to lift vans
     async for a in db.assignments.find({}):
         r = await db.requests.find_one({"_id": a["requestId"]})
         if r["need"]["lift"] or r["need"]["wheelchair"]:
             assert a["vehicleId"] in ("vh_luis", "vh_maria")
+
+
+async def test_stretcher_rider_is_flagged_not_dropped(db):
+    """Nobody in the 8-vehicle fleet carries a stretcher: the rider must show up as unservable."""
+    await seed.seed(db, homes=10, census="none", rng_seed=5)
+    hh = await db.households.find_one({})
+    from api import requests as rq
+
+    r = await rq.upsert_for_household(
+        db, hh["_id"], need={"seats": 1, "stretcher": 1, "crew": 2}, deadline_at=hh["deadlineAt"]
+    )
+    res = await loop.solve_once(db)
+    assert res["unservable"] == 1 and res["proposals"] == 0
+    assert (await db.requests.find_one({"_id": r["_id"]}))["escalation"] == "unservable"
 
 
 async def test_second_solve_is_stable(db):
