@@ -126,7 +126,7 @@ async def tick(db: AsyncIOMotorDatabase, *, now: datetime | None = None, dt_s: f
 
         moved = step_toward(road, here, target, step_m)
         if moved is None:
-            continue  # closure in the way: the planner revokes what can't be reached (D2-06)
+            continue  # closure in the way: the solve loop revokes this pickup (D2-06) and the van moves on
         pos, reached = moved
         if pos != here:
             await db.vehicles.update_one(

@@ -148,7 +148,7 @@ Auth: dashboard and driver endpoints are open in demo mode. `/agent/*` and webho
 | GET | `/vehicles/{id}/run` | → `{vehicle, offers[], run[], shelters[], now}`; each offer/stop = assignment + `request {id,status,need,deadlineAt,escalation}` + `household {id,address,location,language}` *(added D2-05)* | Yash |
 | POST | `/vehicles/{id}/presence` | driver app open (every ~20 s) → `{ok}`; stand-in drivers leave the vehicle alone for 2 min *(added D2-05)* | Yash |
 | POST | `/roads/closures` | `{geometry, source}` → triggers re-plan | Yash |
-| GET | `/hazards` | → fire front, detections, deadlines | Yash |
+| GET | `/hazards` | → `{hazards, closures, shelters, zones}`: fire front, detections, road closures, shelters, zone outlines (what the console map draws; shelters + zones added D2-03) | Yash |
 | POST | `/hazards/photo` | multipart image + lon/lat → Gemini vision → hazard | Yash (P2) |
 | GET | `/zones` | → `[zone]` (added D1-07) | Deep |
 | GET | `/zones/{id}/drill` | → drill page view: published status, zone status, watcher, free-tier usage (added D1-07) | Deep |

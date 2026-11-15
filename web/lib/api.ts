@@ -33,7 +33,7 @@ export const api = {
     call<Doc[]>("GET", `/households${zoneId ? `?zoneId=${encodeURIComponent(zoneId)}` : ""}`),
   openRequests: () => call<Doc[]>("GET", "/requests/open"),
   vehicles: () => call<Doc[]>("GET", "/vehicles"),
-  hazards: () => call<{ hazards: Doc[]; closures: Doc[] }>("GET", "/hazards"),
+  hazards: () => call<{ hazards: Doc[]; closures: Doc[]; shelters?: Doc[]; zones?: Doc[] }>("GET", "/hazards"),
   latestPlan: () => call<{ plan: Doc | null; assignments: Doc[] }>("GET", "/plans/latest"),
 
   approve: (id: string) => call<Doc>("POST", `/assignments/${id}/approve`),
