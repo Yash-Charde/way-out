@@ -63,7 +63,7 @@ VEHICLES: list[dict[str, Any]] = [
         "_id": "vh_tom",
         "kind": "agency_van",
         "driverName": "Tom",
-        "start": "uptown",
+        "start": "uptown_north",
         "capacity": {"seats": 8, "wheelchair": 0, "stretcher": 0},
         "crew": 2,
         "lift": False,
@@ -284,7 +284,13 @@ async def seed(
     await db.households.insert_many(docs)
 
     # ── vehicles ────────────────────────────────────────────────────────────
-    starts = {"uptown": (-111.7615, 34.8705), "west_sedona": (-111.8000, 34.8610), "y": (-111.7650, 34.8635)}
+    starts = {
+        "uptown": (-111.7615, 34.8705),
+        # On SR 89A ~850 m north of Uptown, so Tom's van doesn't sit on top of Luis's on the console map.
+        "uptown_north": (-111.7568, 34.8773),
+        "west_sedona": (-111.8000, 34.8610),
+        "y": (-111.7650, 34.8635),
+    }
     helpers = [d for d in docs if data.persona_group(_persona(d["personaId"])) == "other"]
     neighbor_homes = rng.sample(helpers or docs, k=min(4, len(helpers or docs)))
     nb = iter(neighbor_homes)
