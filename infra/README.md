@@ -57,7 +57,8 @@ Atlas M0 caps us at about 100 operations a second and every call crosses the int
 seed and census crawled. The compose file now runs `mongo` (MongoDB 7, single-node replica set, private,
 0.5 GB cache) next to the APIs. An env uses it only when its env file says so.
 
-Switch dev (and staging) over, on the VM:
+Switch from your phone: GitHub → Actions → **vm-mongo** → Run workflow → env `dev`, database `vm`
+(`atlas` switches back; it also seeds the default world). Or by hand, on the VM:
 ```bash
 cd /opt/wayout
 docker compose up -d --wait mongo                      # first start also runs rs.initiate
