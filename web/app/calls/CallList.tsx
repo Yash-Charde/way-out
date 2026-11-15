@@ -30,8 +30,8 @@ export function CallList({
             <button
               type="button"
               onClick={() => onSelect(c.id)}
-              className={`block w-full px-3 py-2.5 text-left transition-colors hover:bg-white/5 ${
-                selected === c.id ? "bg-white/[0.07]" : ""
+              className={`block w-full px-3 py-2.5 text-left transition-colors hover:bg-ink/5 ${
+                selected === c.id ? "bg-ink/[0.07]" : ""
               }`}
             >
               {/* Remount on each new turn so the row flashes once. */}

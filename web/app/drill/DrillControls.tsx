@@ -81,7 +81,7 @@ export function DrillControls({ zoneId, initial }: { zoneId: string; initial: Dr
               disabled={pending}
               onClick={() => act(() => post(`/zones/${zoneId}/drill`, { published: s }))}
               className={`min-h-12 rounded border text-base font-semibold uppercase ${
-                view.published === s ? "border-help bg-help/15 text-help" : "border-line hover:bg-white/5"
+                view.published === s ? "border-help bg-help/15 text-help" : "border-line hover:bg-ink/5"
               }`}
             >
               {s}
@@ -106,7 +106,7 @@ export function DrillControls({ zoneId, initial }: { zoneId: string; initial: Dr
             disabled={pending || !view.tinyfishConfigured}
             onClick={() => act(() => post(`/zones/${zoneId}/drill/watch`, { on: !armed }))}
             className={`min-h-12 rounded px-4 font-semibold ${
-              armed ? "border border-line text-ink hover:bg-white/5" : "bg-vehicle text-bg hover:opacity-90"
+              armed ? "border border-line text-ink hover:bg-ink/5" : "bg-vehicle text-bg hover:opacity-90"
             } disabled:opacity-40`}
           >
             {armed ? "Disarm" : "Arm"}

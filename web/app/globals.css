@@ -1,28 +1,72 @@
 @import "tailwindcss";
 
-/* Dark, calm, night-time incident UI. Red means ONLY fire or a person who needs help. */
+/*
+ * Light + dark themes. Default follows the system; <html data-theme="light|dark"> forces one
+ * (lib/theme.ts, set before first paint by the script in layout.tsx).
+ * Red means ONLY fire or a person who needs help, in both themes.
+ */
 @theme {
-  --color-bg: #0b0e13;
-  --color-panel: #12161d;
-  --color-line: #232a35;
-  --color-ink: #e6e9ef;
-  --color-muted: #8b95a5;
+  /* light (default) */
+  --color-bg: #f4f5f7;
+  --color-panel: #ffffff;
+  --color-line: #dde1e7;
+  --color-ink: #12161d;
+  --color-muted: #5c6675;
 
-  --color-fire: #ff4d3d;        /* fire + needs a ride */
-  --color-help: #f5a524;        /* can help a neighbor */
-  --color-out: #22c55e;         /* has left */
-  --color-unknown: #6b7280;     /* not reached yet */
-  --color-vehicle: #4da3ff;
-  --color-sim: #a78bfa;
+  --color-fire: #dc2626; /* fire + needs a ride */
+  --color-help: #b86e00; /* can help a neighbor */
+  --color-out: #15803d; /* has left */
+  --color-unknown: #8a93a0; /* not reached yet */
+  --color-vehicle: #1d6fe0;
+  --color-sim: #7c3aed;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   /* One-shot highlight for a value or row that just changed (remount with a new key to replay). */
   --animate-flash: flash 1.4s ease-out;
   @keyframes flash {
-    0% { background-color: rgb(77 163 255 / 0.28); }
-    100% { background-color: transparent; }
+    0% {
+      background-color: rgb(77 163 255 / 0.28);
+    }
+    100% {
+      background-color: transparent;
+    }
   }
+}
+
+/* Dark: calm, night-time incident UI. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #0b0e13;
+    --color-panel: #12161d;
+    --color-line: #232a35;
+    --color-ink: #e6e9ef;
+    --color-muted: #8b95a5;
+    --color-fire: #ff4d3d;
+    --color-help: #f5a524;
+    --color-out: #22c55e;
+    --color-unknown: #6b7280;
+    --color-vehicle: #4da3ff;
+    --color-sim: #a78bfa;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --color-bg: #0b0e13;
+  --color-panel: #12161d;
+  --color-line: #232a35;
+  --color-ink: #e6e9ef;
+  --color-muted: #8b95a5;
+  --color-fire: #ff4d3d;
+  --color-help: #f5a524;
+  --color-out: #22c55e;
+  --color-unknown: #6b7280;
+  --color-vehicle: #4da3ff;
+  --color-sim: #a78bfa;
+  color-scheme: dark;
+}
+:root {
+  color-scheme: light;
 }
 
 html,
@@ -30,4 +74,13 @@ body {
   background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
+}
+
+/* MapLibre's attribution control, matched to the theme. */
+.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--color-panel) 80%, transparent) !important;
+  color: var(--color-muted) !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--color-muted) !important;
 }

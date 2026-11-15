@@ -12,6 +12,7 @@ import { MapboxOverlay, type MapboxOverlayProps } from "@deck.gl/mapbox";
 import { PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import { setWorkerUrl, type StyleSpecification } from "maplibre-gl";
+import type { Theme } from "@/lib/theme";
 import { useMemo, useState } from "react";
 import MapGL, { useControl, type MapLayerMouseEvent } from "react-map-gl/maplibre";
 
@@ -39,24 +40,32 @@ const ROLE_COLOR: Record<string, RGBA> = {
 
 // OpenFreeMap's Dark Matter fork: free, no API key (CARTO's basemaps now need one). Override with
 // NEXT_PUBLIC_MAP_STYLE, e.g. a CARTO style URL with ?key=… if we get a key.
-const STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE || "https://tiles.openfreemap.org/styles/dark";
-const FALLBACK_STYLE: StyleSpecification = {
+const STYLE_URL: Record<Theme, string> = {
+  dark: process.env.NEXT_PUBLIC_MAP_STYLE || "https://tiles.openfreemap.org/styles/dark",
+  light: process.env.NEXT_PUBLIC_MAP_STYLE_LIGHT || "https://tiles.openfreemap.org/styles/positron",
+};
+const fallbackStyle = (theme: Theme): StyleSpecification => ({
   version: 8,
   sources: {},
-  layers: [{ id: "bg", type: "background", paint: { "background-color": "#0b0e13" } }],
-};
+  layers: [{ id: "bg", type: "background", paint: { "background-color": theme === "dark" ? "#0b0e13" : "#eef0f3" } }],
+});
+// Halo around labels/lines (the page background) and label ink, per theme.
+const HALO: Record<Theme, RGBA> = { dark: [11, 14, 19, 255], light: [255, 255, 255, 255] };
+const INK: Record<Theme, RGBA> = { dark: [230, 233, 239, 255], light: [18, 22, 29, 255] };
+const SHELTER_INK: Record<Theme, RGBA> = { dark: [167, 139, 250, 255], light: [109, 40, 217, 255] };
+const FONT = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 // Served from /public by scripts/copy-maplibre-worker.mjs (the bundler can't resolve MapLibre's own URL).
 setWorkerUrl("/maplibre-gl-worker.mjs");
 
 // The canyon tract + the Red Rock HS shelter, framed in the gap between the console's side panels.
-export const INITIAL_VIEW = {
-  bounds: [
-    [-111.835, 34.845],
-    [-111.715, 35.02],
-  ] as [[number, number], [number, number]],
-  fitBoundsOptions: { padding: { top: 100, bottom: 70, left: 390, right: 420 } },
-};
+export type Padding = { top: number; bottom: number; left: number; right: number };
+export const CANYON_BOUNDS: [[number, number], [number, number]] = [
+  [-111.835, 34.845],
+  [-111.715, 35.02],
+];
+// The console's default: the canyon in the gap between its two side panels.
+const CONSOLE_PADDING: Padding = { top: 100, bottom: 70, left: 390, right: 420 };
 
 function lonlat(doc: unknown): LonLat | null {
   const c = (doc as { location?: { coordinates?: number[] } } | undefined)?.location?.coordinates;
@@ -83,11 +92,17 @@ export type MapViewProps = {
   drawing: LonLat[] | null; // road-closure tool: points so far (null = tool off)
   onSelectHousehold: (id: string | null) => void;
   onMapClick: (p: LonLat) => void;
+  theme?: Theme;
+  padding?: Padding; // keeps the canyon clear of the page's panels
 };
 
 export default function MapView(p: MapViewProps) {
-  const [style, setStyle] = useState<string | StyleSpecification>(STYLE_URL);
+  const theme: Theme = p.theme ?? "dark";
+  const [failed, setFailed] = useState(false); // basemap unreachable: plain background, layers still draw
   const [loaded, setLoaded] = useState(false);
+  const style = failed ? fallbackStyle(theme) : STYLE_URL[theme];
+  const halo = HALO[theme];
+  const ink = INK[theme];
 
   const requestByHousehold = useMemo(() => {
     const m: Record<string, Doc> = {};
@@ -130,11 +145,16 @@ export default function MapView(p: MapViewProps) {
       id: "zones",
       data: p.zones.filter((z) => (z.polygon as { coordinates?: unknown })?.coordinates),
       getPolygon: (z) => (z.polygon as { coordinates: LonLat[][] }).coordinates[0],
-      getFillColor: (z) => (z.status === "go" ? [255, 77, 61, 28] : z.status === "set" ? [245, 165, 36, 22] : [230, 233, 239, 10]),
-      getLineColor: (z) => (z.status === "go" ? COLORS.fire : z.status === "set" ? COLORS.help : [230, 233, 239, 90]),
+      getFillColor: (z) =>
+        z.status === "go" ? [255, 77, 61, 28] : z.status === "set" ? [245, 165, 36, 22] : ([...ink.slice(0, 3), 10] as RGBA),
+      getLineColor: (z) =>
+        z.status === "go" ? COLORS.fire : z.status === "set" ? COLORS.help : ([...ink.slice(0, 3), 110] as RGBA),
       getLineWidth: 2,
       lineWidthUnits: "pixels",
-      updateTriggers: { getFillColor: p.zones.map((z) => z.status), getLineColor: p.zones.map((z) => z.status) },
+      updateTriggers: {
+        getFillColor: [theme, p.zones.map((z) => z.status)],
+        getLineColor: [theme, p.zones.map((z) => z.status)],
+      },
     }),
     new PolygonLayer<Doc>({
       id: "fire",
@@ -157,7 +177,7 @@ export default function MapView(p: MapViewProps) {
       id: "closures-halo",
       data: p.closures,
       getPath: (c) => (c.geometry as { coordinates: LonLat[] }).coordinates,
-      getColor: [11, 14, 19, 255],
+      getColor: halo,
       getWidth: 13,
       widthUnits: "pixels",
       capRounded: true,
@@ -177,7 +197,7 @@ export default function MapView(p: MapViewProps) {
       getPath: (l) => l.path,
       getColor: (l) =>
         l.id === p.highlightAssignmentId
-          ? COLORS.ink
+          ? ink
           : l.status === "accepted"
             ? COLORS.vehicle
             : l.status === "offered"
@@ -185,7 +205,7 @@ export default function MapView(p: MapViewProps) {
               : [77, 163, 255, 90],
       getWidth: (l) => (l.id === p.highlightAssignmentId ? 4 : l.status === "accepted" ? 3 : 1.5),
       widthUnits: "pixels",
-      updateTriggers: { getColor: p.highlightAssignmentId, getWidth: p.highlightAssignmentId },
+      updateTriggers: { getColor: [theme, p.highlightAssignmentId], getWidth: p.highlightAssignmentId },
     }),
     new ScatterplotLayer<Doc>({
       id: "homes",
@@ -197,18 +217,21 @@ export default function MapView(p: MapViewProps) {
       stroked: true,
       getLineColor: (h) =>
         h.id === p.selectedHouseholdId
-          ? COLORS.ink
+          ? ink
           : requestByHousehold[h.id]?.escalation
-            ? [255, 255, 255, 230]
-            : [11, 14, 19, 255],
-      getLineWidth: (h) => (h.id === p.selectedHouseholdId ? 3 : requestByHousehold[h.id]?.escalation ? 2 : 1),
+            ? ink
+            : h.simulated === false
+              ? COLORS.vehicle // a real household (the kiosk's judge)
+              : halo,
+      getLineWidth: (h) =>
+        h.id === p.selectedHouseholdId ? 3 : requestByHousehold[h.id]?.escalation || h.simulated === false ? 2 : 1,
       lineWidthUnits: "pixels",
       pickable: true,
       updateTriggers: {
         getFillColor: p.households.map((h) => h.role),
         getRadius: p.households.map((h) => h.role),
-        getLineColor: [p.selectedHouseholdId, requestByHousehold],
-        getLineWidth: [p.selectedHouseholdId, requestByHousehold],
+        getLineColor: [theme, p.selectedHouseholdId, requestByHousehold, p.households.map((h) => h.simulated)],
+        getLineWidth: [p.selectedHouseholdId, requestByHousehold, p.households.map((h) => h.simulated)],
       },
     }),
     new ScatterplotLayer<Doc>({
@@ -219,7 +242,7 @@ export default function MapView(p: MapViewProps) {
       radiusUnits: "pixels",
       getFillColor: COLORS.shelter,
       stroked: true,
-      getLineColor: COLORS.ink,
+      getLineColor: ink,
       getLineWidth: 1.5,
       lineWidthUnits: "pixels",
     }),
@@ -235,14 +258,14 @@ export default function MapView(p: MapViewProps) {
           ? COLORS.fire
           : COLORS.vehicle,
       stroked: true,
-      getLineColor: (v) => (v.status === "offered" ? COLORS.help : COLORS.ink),
+      getLineColor: (v) => (v.status === "offered" ? COLORS.help : ink),
       getLineWidth: 2,
       lineWidthUnits: "pixels",
       pickable: true,
       transitions: { getPosition: 900 },
       updateTriggers: {
         getFillColor: p.vehicles.map((v) => (v.safety as { state?: string } | undefined)?.state),
-        getLineColor: p.vehicles.map((v) => v.status),
+        getLineColor: [theme, p.vehicles.map((v) => v.status)],
       },
     }),
     new TextLayer<Doc>({
@@ -251,11 +274,12 @@ export default function MapView(p: MapViewProps) {
       getPosition: (v) => lonlat(v)!,
       getText: (v) => String(v.driverName ?? v.id),
       getSize: 12,
-      getColor: COLORS.ink,
+      getColor: ink,
       getPixelOffset: [0, -18],
       fontWeight: 600,
       outlineWidth: 3,
-      outlineColor: [11, 14, 19, 255],
+      outlineColor: halo,
+      fontFamily: FONT,
       fontSettings: { sdf: true },
       transitions: { getPosition: 900 },
     }),
@@ -273,7 +297,8 @@ export default function MapView(p: MapViewProps) {
       getTextAnchor: "start",
       fontWeight: 700,
       outlineWidth: 3,
-      outlineColor: [11, 14, 19, 255],
+      outlineColor: halo,
+      fontFamily: FONT,
       fontSettings: { sdf: true },
     }),
     new TextLayer<Doc>({
@@ -282,10 +307,11 @@ export default function MapView(p: MapViewProps) {
       getPosition: (s) => lonlat(s)!,
       getText: (s) => String(s.name ?? "Shelter").split(",")[0],
       getSize: 11,
-      getColor: COLORS.shelter,
+      getColor: SHELTER_INK[theme],
       getPixelOffset: [0, 18],
       outlineWidth: 3,
-      outlineColor: [11, 14, 19, 255],
+      outlineColor: halo,
+      fontFamily: FONT,
       fontSettings: { sdf: true },
     }),
     new PathLayer<{ path: LonLat[] }>({
@@ -303,12 +329,12 @@ export default function MapView(p: MapViewProps) {
 
   return (
     <MapGL
-      initialViewState={INITIAL_VIEW}
+      initialViewState={{ bounds: CANYON_BOUNDS, fitBoundsOptions: { padding: p.padding ?? CONSOLE_PADDING } }}
       mapStyle={style}
       style={{ position: "absolute", inset: 0 }}
       onLoad={() => setLoaded(true)}
       onError={() => {
-        if (!loaded) setStyle(FALLBACK_STYLE); // basemap unreachable: keep going on a plain background
+        if (!loaded) setFailed(true); // basemap unreachable: keep going on a plain background
       }}
       onClick={onClick}
       cursor={p.drawing ? "crosshair" : undefined}
@@ -317,6 +343,7 @@ export default function MapView(p: MapViewProps) {
       <DeckOverlay
         interleaved={false}
         layers={layers}
+        pickingRadius={10} // small dots, big fingers
         onClick={(info: PickingInfo) => {
           if (p.drawing) return false; // the map click handles the tool
           if (info.layer?.id === "homes" && info.object) {

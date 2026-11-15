@@ -8,9 +8,12 @@
  */
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { MapLegend } from "@/components/MapLegend";
 import { SimBadge } from "@/components/Shell";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { api, type StandIns } from "@/lib/api";
 import { useLive } from "@/lib/live";
+import { useTheme } from "@/lib/theme";
 
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
@@ -75,30 +78,6 @@ function Counter({ label, value, tone }: { label: string; value: number; tone?: 
   );
 }
 
-function Legend() {
-  const dot = (cls: string, label: string) => (
-    <span className="flex items-center gap-1.5">
-      <span className={`inline-block h-2.5 w-2.5 rounded-full ${cls}`} />
-      {label}
-    </span>
-  );
-  return (
-    <div className={`${PANEL} flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-xs text-muted`}>
-      {dot("bg-fire", "needs a ride")}
-      {dot("bg-help", "can help")}
-      {dot("bg-out", "left")}
-      {dot("bg-unknown", "not reached")}
-      {dot("bg-vehicle ring-2 ring-ink", "vehicle")}
-      {dot("bg-sim", "shelter")}
-      <span className="flex items-center gap-1.5">
-        <span className="inline-block h-1 w-5 rounded bg-fire" />
-        road closed
-      </span>
-      <SimBadge />
-    </div>
-  );
-}
-
 export function Console() {
   const connect = useLive((s) => s.connect);
   const resync = useLive((s) => s.resync);
@@ -110,6 +89,7 @@ export function Console() {
   const liveZones = useLive((s) => s.zones);
   const liveHazards = useLive((s) => s.hazards);
   const plan = useLive((s) => s.plan);
+  const { theme } = useTheme();
   const lastSafety = useLive((s) => s.safety[s.safety.length - 1]);
 
   const [now, setNow] = useState(() => Date.now());
@@ -277,6 +257,7 @@ export function Console() {
         drawing={drawing}
         onSelectHousehold={setSelectedHome}
         onMapClick={onMapClick}
+        theme={theme}
       />
 
       <header
@@ -305,6 +286,7 @@ export function Console() {
           <button className={BTN} onClick={() => setPanels((v) => !v)}>
             {panels ? "Hide lists" : "Show lists"}
           </button>
+          <ThemeToggle />
           <span className="mx-1 h-5 w-px bg-line" />
           <SimBadge />
           <button className={BTN} disabled={!!busy} onClick={() => run(
@@ -532,7 +514,7 @@ export function Console() {
       )}
 
       <div className="absolute bottom-3 left-3 z-10">
-        <Legend />
+        <MapLegend className={PANEL} />
       </div>
     </main>
   );

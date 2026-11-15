@@ -164,7 +164,7 @@ export default function CallsPage() {
                   setTab(t);
                   setSelected(null);
                 }}
-                className={`flex-1 rounded px-2 py-1.5 text-sm ${tab === t ? "bg-white/10 text-ink" : "text-muted hover:text-ink"}`}
+                className={`flex-1 rounded px-2 py-1.5 text-sm ${tab === t ? "bg-ink/10 text-ink" : "text-muted hover:text-ink"}`}
               >
                 {t === "live" ? `Live (${liveCalls.length})` : `Ended (${ended.length})`}
               </button>
