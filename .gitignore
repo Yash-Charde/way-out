@@ -25,3 +25,6 @@ data/cache/
 
 # Cartesia CLI link to the agent (local)
 voice/.cartesia/
+
+# eval transcripts (large; the summary is data/eval-results.json)
+evals/results.json

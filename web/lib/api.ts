@@ -75,6 +75,8 @@ export const api = {
       "/plans/solve",
       { solver },
     ),
+  // system page (D1-09)
+  systemMetrics: () => call<SystemMetrics>("GET", "/system/metrics"),
   // kiosk (D1-08): this house becomes the judge's phone, then we call it
   kiosk: (householdId: string, phone: string) =>
     call<{ callId: string; householdId: string; address: string }>("POST", "/calls/kiosk", { householdId, phone }),
@@ -94,6 +96,40 @@ export type RunStop = Doc & {
 export type DriverRun = { vehicle: Doc; offers: RunStop[]; run: RunStop[]; shelters: Doc[]; now: string };
 
 export type StandIns = { voice: boolean; drivers: boolean; approval: boolean };
+
+type Latency = { p50: number | null; p95: number | null; turns: number };
+export type EvalSummary = {
+  personas: number;
+  callsCompleted: number;
+  fieldAccuracy: Record<string, number>;
+  overallFieldAccuracy: number | null;
+  roleAccuracy: number | null;
+  needAccuracy: number | null;
+  correctionsCaught: string;
+  honesty: { turnsJudged: number; turnsPassed: number; failures: number };
+  acks: { proposed: number; blocked: number };
+  latencyMs: Latency;
+  interpreters: string[];
+};
+export type SystemMetrics = {
+  live: {
+    calls: number;
+    latencyMs: { realPhone: Latency; standIns: Latency };
+    interpreter: Record<string, number>;
+    fallbacks: number;
+    acks: { proposed: number; blocked: number };
+  };
+  evals: {
+    generatedAt: string;
+    interpreterConfigured: string;
+    simulated: boolean;
+    modes: Record<"script" | "answers", { summary: EvalSummary }>;
+    judge: { model: string; agentLinesJudged: number; impliedPromises: number } | null;
+  } | null;
+  dispatch: Record<string, unknown> | null;
+  census: { reach: Record<string, number>; openRequests: Record<string, number>; duplicatesMerged: number };
+  audit: { id: string; kind: string; message: string; at: string }[];
+};
 
 export type HouseholdRecord = {
   canLeave?: "yes" | "no" | "unsure";

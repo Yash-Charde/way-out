@@ -15,7 +15,7 @@ can see where you are on `develop` after each merge.
 | D1-06 | 8:00–10:00 | Callbacks + live status | `feat/deep` | ✅ done with stand-ins; real-phone callbacks coded, untested until D1-01 | |
 | D1-07 | 10:00–11:15 | TinyFish SET trigger | `feat/deep` | 🟡 built + tested with a fake TinyFish; live check needs a public `/drill` URL | |
 | D1-08 | 11:15–12:15 | Dedupe + kiosk | `feat/deep` | 🟡 built; Gemini embeddings unused until a key is set; kiosk call waits on Cartesia | |
-| D1-09 | 12:15–1:00 | Evals + /system | `feat/D1-09-evals-system` | ⬜ todo | |
+| D1-09 | 12:15–1:00 | Evals + /system | `feat/deep` | 🟡 evals + /system built with real numbers (rule interpreter); re-run with Gemini; Claude judge not run (cost) | |
 
 ## How to work
 
@@ -54,4 +54,9 @@ can see where you are on `develop` after each merge.
 - Kiosk (D1-08): `/` shows the homes; `POST /calls/kiosk {householdId, phone}` makes that house the judge's real
   phone (record reset, stand-in request closed) and dials it. 6 claims/min max; no phone numbers in the audit log.
   Privacy: `GET /households` (Prem's route) returns phone numbers, so a judge's number is visible there. Flag for Prem.
+- Evals (D1-09), first run, rule interpreter, no AI model (2026-11-15): 40 personas, all calls completed.
+  Honesty 620/620 agent turns (persona's own words) and 388/388 (direct answers). Field accuracy: 100% on direct
+  answers, 27% on the personas' own unprompted words (the rule parser can't handle free speech; this is the number
+  Gemini should raise). Corrections caught 2/2 (direct answers), 0/2 (own words). Latency p50 0.3 ms is code only,
+  no model, so it is **not** a voice-latency number for Devpost. Real latency needs Gemini + a real call.
 - Known gap: personas p29 ("I'm staying") and p31 (suspicious caller) end as `left`, not `stay`/`unknown`.

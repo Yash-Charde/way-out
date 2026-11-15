@@ -362,6 +362,8 @@ def rules(text: str, *, goal: str | None = None, language: str = "en") -> Interp
         it.set["medical"] = ["oxygen"]
     if _has(r"\b(dialysis|diálisis)\b", t):
         it.set.setdefault("medical", []).append("dialysis")
+    if _has(r"\b(other medical|medical needs?|necesidades médicas|otras necesidades)\b", t) and not is_no:
+        it.set.setdefault("medical", []).append("other")
 
     # Count people only when asked, or when they clearly talk about the household ("two of us").
     # "It takes two people to lift him" is about help, not household size.

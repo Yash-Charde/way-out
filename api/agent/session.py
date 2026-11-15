@@ -76,6 +76,7 @@ async def start(db: AsyncIOMotorDatabase, household_id: str, call_type: str, cal
                 "householdId": household_id,
                 "direction": call_type,
                 "startedAt": now,
+                "simulated": bool(hh.get("simulated")),  # /system splits real-phone vs stand-in latency
                 "turns": [],
             },
         },
@@ -172,6 +173,10 @@ async def turn(
         "requestStatus": status,
         "guardBlocked": verdict.blocked,
         "stage": state["stage"],
+        # The only AI-written words in the turn (evals, /system): what it proposed, and what was spoken.
+        "ackProposed": it.ack,
+        "ack": verdict.ack,
+        "guardReason": verdict.reason,
     }
     hh_set: dict[str, Any] = {}
     role = flow.role_for(record, state)

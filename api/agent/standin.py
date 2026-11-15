@@ -46,7 +46,12 @@ ANSWERS: dict[str, dict[str, Any]] = {
             "bedbound": "She is in bed, she can't get out of bed.",
         },
         "chair_kind": {"power_wheelchair": "It's a power chair.", "manual_wheelchair": "It's a manual chair."},
-        "oxygen": {"oxygen": "Yes, oxygen.", "dialysis": "I need dialysis.", "none": "No oxygen."},
+        "oxygen": {
+            "oxygen": "Yes, oxygen.",
+            "dialysis": "I need dialysis.",
+            "other": "Yes, other medical needs.",
+            "none": "No oxygen.",
+        },
         "assistance": {
             "none": "No help needed.",
             "one_person": "One person to help.",
@@ -74,7 +79,12 @@ ANSWERS: dict[str, dict[str, Any]] = {
             "bedbound": "Está en cama.",
         },
         "chair_kind": {"power_wheelchair": "Es una silla eléctrica.", "manual_wheelchair": "Es una silla manual."},
-        "oxygen": {"oxygen": "Sí, uso oxígeno.", "dialysis": "Necesito diálisis.", "none": "No, nada de eso."},
+        "oxygen": {
+            "oxygen": "Sí, uso oxígeno.",
+            "dialysis": "Necesito diálisis.",
+            "other": "Sí, otras necesidades médicas.",
+            "none": "No, nada de eso.",
+        },
         "assistance": {
             "none": "Ninguna.",
             "one_person": "Una persona para ayudar.",
@@ -153,7 +163,8 @@ class Resident:
             return a["chair_kind"].get(t.get("mobility"), a["chair_kind"]["manual_wheelchair"])
         if goal == "oxygen":
             med = t.get("medical") or []
-            return a["oxygen"]["oxygen" if "oxygen" in med else "dialysis" if "dialysis" in med else "none"]
+            key = next((m for m in ("oxygen", "dialysis", "other") if m in med), "none")
+            return a["oxygen"][key]
         if goal == "assistance":
             return a["assistance"].get(t.get("assistance") or "one_person", a["assistance"]["one_person"])
         if goal == "neighbor_rider":

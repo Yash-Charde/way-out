@@ -65,9 +65,9 @@ async def test_zone_status_webhook(client, db):
 
 
 async def test_stubs_say_who_owns_them(client):
-    # /agent/* and /calls/dial are built now; /system/metrics is still a stub until D1-09.
-    res = await client.get("/system/metrics")
-    assert res.status_code == 501 and "D1-09" in res.json()["detail"]
+    # Deep's endpoints are all built now (D1-09 was the last); photo reports are still a stub (P2).
+    res = await client.post("/hazards/photo")
+    assert res.status_code in (422, 501)
 
 
 def test_live_event_mapping():
