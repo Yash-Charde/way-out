@@ -11,4 +11,9 @@
 
 Deck v1 (A-06): https://claude.ai/artifact/MavJdptmj1AD2ryp6hPoCt
 
+Deck to-do before A-11:
+- Slide 7 numbers from `data/sim-results.json` + `/system` (A-09, waiting on Yash's D2-09).
+- Add the **Future of Work** line (JFF Ventures): copy it from the "Future of work" paragraph in `devpost.md`.
+- Sponsor slide: add Amazon Bedrock only if D1-10 ships.
+
 Data files live in `data/`: `scenario.json` (A-02), `personas.json` (A-05).

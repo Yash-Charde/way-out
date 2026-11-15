@@ -5,33 +5,34 @@
 Update this table as you go (⬜ todo · 🟡 in progress · ✅ done · ⛔ blocked). Commit it with your work so the team
 can see where you are on `develop` after each merge.
 
-| ID | When | Task | Task branch | Status | PR |
+| ID | When | Task | Branch | Status | PR |
 |---|---|---|---|---|---|
-| A-01 | 9:00–11:10 | The story | `feat/A-01-the-story` | ✅ done | `docs/story/story.md`, `sources.md` (22 facts) |
-| A-02 | 11:10–1:00 | Arizona scenario facts: Pocket Fire | `feat/A-02-arizona-scenario-facts-pocket-fi` | ✅ done | `data/scenario.json` |
-| A-03 | 1:00–2:00 | Population numbers | `feat/A-03-population-numbers` | ✅ done | `docs/story/population.md` |
-| A-04 | 2:00–5:00 | Talk to real responders | `feat/A-04-talk-to-real-responders` | ✅ done (published quotes) | no interview; sourced quotes + gap in `responders.md` |
-| A-05 | 5:00–6:30 | Personas | `feat/A-05-personas` | ✅ done | `data/personas.json` (40) |
-| A-06 | 6:30–10:00 | Deck v1 | `feat/A-06-deck-v1` | ✅ done (v1) | deck link in `docs/story/README.md`; slide 7 numbers wait for A-09 |
-| A-07 | 10:00–12:00 | Demo script + Q&A | `feat/A-07-demo-script-q-a` | ✅ done | `docs/story/demo.md` |
-| A-08 | 12:00–1:00 AM | Devpost draft | `feat/A-08-devpost-draft` | ✅ drafted | `docs/story/devpost.md`; save on Devpost, don't submit |
-| A-09 | 3:00–5:00 | Impact numbers | `feat/A-09-impact-numbers` | 🟡 prep done | assumptions in `docs/story/impact.md`; needs Yash's sim run |
-| A-10 | 5:00–8:30 | Rehearse ×3 | `feat/A-10-rehearse-3` | 🟡 prep done | shot list + rehearsal log in `docs/story/expo.md` |
-| A-11 | 8:30–10:30 | Final deck, final Devpost with Prem: links (live app, repo, video),… | `feat/A-11-final-deck-final-devpost-with-pr` | ⬜ todo | |
-| A-12 | 12:00–2:00 PM | Expo: you tell the story (first 20 seconds) and handle Q&A | `feat/A-12-expo-you-tell-the-story-first-20` | 🟡 prep done | expo cheat sheet in `docs/story/expo.md` |
+| A-01 | 9:00–11:10 | The story | `feat/aarya` | ✅ done | #43 · `docs/story/story.md`, `sources.md` (22 facts) |
+| A-02 | 11:10–1:00 | Arizona scenario facts: Pocket Fire | `feat/aarya` | ✅ done | `data/scenario.json` |
+| A-03 | 1:00–2:00 | Population numbers | `feat/aarya` | ✅ done | `docs/story/population.md` |
+| A-04 | 2:00–5:00 | Talk to real responders | `feat/aarya` | ✅ done (published quotes) | no interview; sourced quotes + gap in `responders.md` |
+| A-05 | 5:00–6:30 | Personas | `feat/aarya` | ✅ done | `data/personas.json` (40) |
+| A-06 | 6:30–10:00 | Deck v1 | `feat/aarya` | ✅ done (v1) | deck link in `docs/story/README.md`; slide 7 numbers wait for A-09 |
+| A-07 | 10:00–12:00 | Demo script + Q&A | `feat/aarya` | ✅ done | `docs/story/demo.md` |
+| A-08 | 12:00–1:00 AM | Devpost draft | `feat/aarya` | ✅ drafted | #43 · `docs/story/devpost.md` (+ Future of Work, prize opt-ins); save on Devpost, don't submit |
+| A-09 | 3:00–5:00 | Impact numbers | `feat/aarya` | ⛔ blocked | assumptions in `docs/story/impact.md`; waiting on Yash's D2-09 (`data/sim-results.json`, still ⬜ at 5:53 PM) |
+| A-10 | 5:00–8:30 | Rehearse ×3 | `feat/aarya` | 🟡 prep done | shot list + rehearsal log in `docs/story/expo.md` |
+| A-11 | by 10:00 AM | Final deck, final Devpost with Prem: links (live app, repo, video),… | `feat/aarya` | ⬜ todo | |
+| A-12 | 12:00–2:00 PM | Expo: you tell the story (first 20 seconds) and handle Q&A | `feat/aarya` | 🟡 prep done | expo cheat sheet in `docs/story/expo.md` |
+| A-13 | 3:45–5:15 PM | Go-live accounts (from P-04): Atlas, secrets.env, Vultr VM, domain + DNS, deploy key | `feat/aarya` | 🟡 in progress (late) | #49 · secrets.env + deploy key made locally; accounts next |
 
 ## How to work
 
-- `feat/aarya` is your home branch, cut from `develop`. For each task you can work here, or cut a task branch
-  (`feat/<ID>-<slug>`, names above) from `develop` and open a PR back into `develop`. Small PRs merge faster.
-- Keep in sync: `git fetch origin && git rebase origin/develop` before you open a PR.
+- All of Aarya's work goes on one branch, `feat/aarya`, cut from `develop`, with PRs back into `develop`. No per-task branches.
+- Keep in sync: `git fetch origin && git merge origin/develop` before you open a PR (no rebase, no force-push).
 - Rules: [`AGENTS.md`](../../../AGENTS.md) · flow: [`CONTRIBUTING.md`](../../../CONTRIBUTING.md) · shared shapes: [`docs/CONTRACT.md`](../../CONTRACT.md).
 - Blocked more than 20 minutes → post in team chat with the task ID.
 
 ## Notes
 
-- 2026-11-14: A-01/02/03/05/07 committed on `feat/aarya-story`. Posted to Yash: scenario.json + population rates.
+- 2026-11-14: A-01/02/03/05/07 committed on `feat/aarya-story` (since merged and deleted; one branch now). Posted to Yash: scenario.json + population rates.
 - Heads-up for the team: in the real Pocket Fire the canyon went **straight to GO** (no SET stage). Demo shows a SET window; `demo.md` has the honest line for Q&A.
 - `scenario.json` uses an event type `set` for the Flagstaff-side zones and adds `closure.action` (`close` / `residents_only` / `reopen`); Yash, shout if the seeder needs different names.
 - Ignition point is approximate (no official coordinates published).
 - A-04: no in-person interview. Responder voices are published, cited quotes (`responders.md`), labeled as such on slides and Devpost.
+- 5:53 PM: #43 merged into `develop` (A-01–A-08). Added the Future of Work paragraph and prize opt-ins to `devpost.md`; Devpost now due **10:00 AM**, Aarya is the only editor.

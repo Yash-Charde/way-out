@@ -1,8 +1,18 @@
 # Devpost draft (A-08)
 
-> Paste each section into Devpost and **save as draft; don't submit** (A-11 submits by 10:30 AM).
+> Paste each section into Devpost and **save as draft; don't submit yet**. A-11: **submit complete by 10:00 AM Sunday**; the hard deadline is 11:00 and late submissions aren't accepted.
+> **Aarya is the only Devpost editor.** Prem reviews but doesn't edit at the same time (two editors overwrite each other).
 > Every `[__]` is a number we fill from `/system` or `data/sim-results.json` at A-09. Don't publish a `[__]`.
-> Before submitting, delete any sponsor or feature line that didn't actually ship.
+> Before submitting, delete any sponsor or feature line that didn't actually ship. Lines marked *(only if shipped)* need a check.
+
+## Prize opt-ins (tick on Devpost)
+
+- [ ] **Future of Work: JFF Ventures** (see the Future of Work paragraph under "What it does")
+- [ ] **Best Use of AWS** *(only if shipped: Claude on Amazon Bedrock as fallback + eval judge, D1-10)*
+- [ ] **Best Use of TinyFish**
+- [ ] MLH: **Gemini**, **MongoDB Atlas**, **Tiger Data**, **Vultr**, **GoDaddy Registry**
+
+Not targeted: Best Hardware, Best Gaming, Most Impractical, Best Mascot, student-org categories.
 
 **Project name:** Way Out
 **Tagline (≤ 60 chars):** Call every home at once. Get everyone a way out.
@@ -33,6 +43,8 @@ Silence is never "safe". No answer means retry at 2 minutes, again at 5, then a 
 
 Drivers are protected too. The driver app shows fire distance, flags a route into the fire buffer, and sends SOS or MAN DOWN (impact, then stillness) with coordinates.
 
+**Future of work.** Way Out turns paratransit drivers, agency van crews and neighbors into an on-call emergency workforce. The AI works the phone bank, calling every home at once, so one dispatcher supervises and approves a plan instead of dialing. Drivers get offers the way gig workers do, and they see exactly who they're picking up and what help is needed before they accept. They're low- and middle-wage workers, getting safe, well-briefed work at the moment they're most needed.
+
 ## How we built it
 
 - **Voice:** Cartesia Line (phone numbers, speech-to-text, text-to-speech) runs the calls.
@@ -58,6 +70,7 @@ Drivers are protected too. The driver app shows fire distance, flags a route int
 | TinyFish | Watches Ready, Set, Go pages and triggers the calls |
 | Tiger Data | Vehicle tracks, fire detections, call latency |
 | GoDaddy Registry | Our domain |
+| Amazon Bedrock *(only if shipped)* | Claude on Bedrock: fallback call interpreter and the eval judge |
 
 ## Challenges we ran into
 
@@ -90,7 +103,7 @@ Drivers are protected too. The driver app shows fire distance, flags a route int
 
 ## Built with
 
-`python` `fastapi` `mongodb-atlas` `atlas-vector-search` `google-or-tools` `gemini` `cartesia` `claude` `tinyfish` `tiger-data` `timescaledb` `next.js` `tailwindcss` `shadcn-ui` `maplibre` `deck.gl` `vultr` `caddy` `vercel` `godaddy-registry` `nasa-firms`
+`python` `fastapi` `mongodb-atlas` `atlas-vector-search` `google-or-tools` `gemini` `cartesia` `claude` `tinyfish` `tiger-data` `timescaledb` `next.js` `tailwindcss` `shadcn-ui` `maplibre` `deck.gl` `vultr` `caddy` `vercel` `godaddy-registry` `nasa-firms` `amazon-bedrock` *(only if shipped)*
 
 ## AI use disclosure
 

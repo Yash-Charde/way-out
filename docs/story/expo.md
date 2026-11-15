@@ -32,6 +32,8 @@ Upload to YouTube as **Unlisted**, title “Way Out — SunHacks 2026”, and pa
 
 ## A-12: expo, 12:00–2:00 PM
 
+**"Your hack, not your slides, is judged"** (opening slides). At the table: the story in 20 seconds with **one slide at most**, then go straight to the live product. The full deck is for the video and Devpost only.
+
 **Your first 20 seconds, every time:** the Rory Sykes lines from `story.md`, then “Way Out calls every home at once and gets the people who can’t leave matched with someone who can take them.”
 
 **Then hand off:** “Want to be the resident? Put your number in and it’ll call you.” (the `/` kiosk page)
