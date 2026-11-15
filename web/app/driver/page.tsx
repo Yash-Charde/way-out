@@ -1,5 +1,10 @@
-import { Shell } from "@/components/Shell";
+import { Suspense } from "react";
+import { Driver } from "./Driver";
 
 export default function Page() {
-  return <Shell title="Driver" owner="Yash" task="D2-05" />;
+  return (
+    <Suspense fallback={<main className="p-4 text-muted">Loading…</main>}>
+      <Driver />
+    </Suspense>
+  );
 }

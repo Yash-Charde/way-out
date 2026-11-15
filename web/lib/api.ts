@@ -50,6 +50,8 @@ export const api = {
   closeRequest: (id: string, reason: "resident_left" | "duplicate" | "dispatcher") =>
     call<Doc>("POST", `/requests/${id}/close`, { reason }),
 
+  run: (id: string) => call<DriverRun>("GET", `/vehicles/${id}/run`),
+  presence: (id: string) => call<{ ok: true }>("POST", `/vehicles/${id}/presence`),
   position: (id: string, p: { lon: number; lat: number; heading?: number; speedMps?: number }) =>
     call<{ ok: true }>("POST", `/vehicles/${id}/position`, p),
   safety: (id: string, s: { state: "ok" | "check" | "man_down" | "sos"; lon?: number; lat?: number }) =>
@@ -80,6 +82,16 @@ export const api = {
   calls: (limit = 100) => call<CallSummary[]>("GET", `/calls?limit=${limit}`),
   call: (id: string) => call<CallDetail>("GET", `/calls/${encodeURIComponent(id)}`),
 };
+
+export type RunStop = Doc & {
+  status: string;
+  expiresAt?: string;
+  etaMinutes?: number;
+  stopOrder?: number;
+  request: { id: string; status: string; need?: Record<string, unknown>; deadlineAt?: string; escalation?: string };
+  household: { id: string; address?: string; location?: { coordinates: [number, number] }; language?: string };
+};
+export type DriverRun = { vehicle: Doc; offers: RunStop[]; run: RunStop[]; shelters: Doc[]; now: string };
 
 export type StandIns = { voice: boolean; drivers: boolean; approval: boolean };
 
