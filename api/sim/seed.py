@@ -129,6 +129,26 @@ def fire_minutes(home: tuple[float, float], ignition: tuple[float, float], wind_
     return meters(ignition, home) / speed
 
 
+def tract(road: Road) -> tuple[float, float, float]:
+    """Chainages of the census tract: (Midgley Bridge, Pine Flat, Slide Rock = zone 14/15 split)."""
+    return (
+        road.project((-111.7497, 34.8875))[0],
+        road.project((-111.7383, 35.0122))[0],
+        road.project((-111.7529, 34.9437))[0],
+    )
+
+
+def place_home(rng: random.Random, road: Road, tract_from: float, span: float) -> tuple[float, float]:
+    """A home along SR 89A in the tract, denser around the canyon's clusters, 40–300 m off the road."""
+    if rng.random() < 0.6:
+        frac = rng.choices(CLUSTERS, weights=[w for _, w in CLUSTERS])[0][0]
+        frac = min(1.0, max(0.0, rng.gauss(frac, 0.05)))
+    else:
+        frac = rng.random()
+    offset = rng.choice((-1, 1)) * rng.uniform(40, 300)
+    return road.point_at(tract_from + frac * span, offset)
+
+
 def _pick_persona(rng: random.Random, groups: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     r = rng.random()
     if r < NEED_RIDE_SHARE * HEAVY_SHARE_OF_RIDERS and groups["ride_chair"]:
@@ -188,9 +208,7 @@ async def seed(
     removed = await reset(db)
 
     # ── zones: south half (14) and north half (15) of the tract ──────────────
-    tract_from = road.project((-111.7497, 34.8875))[0]  # Midgley Bridge
-    tract_to = road.project((-111.7383, 35.0122))[0]  # Pine Flat
-    split = road.project((-111.7529, 34.9437))[0]  # Slide Rock
+    tract_from, tract_to, split = tract(road)
     zone_meta = {z["id"]: z for z in sc.get("zones", [])}
     zone_ids = list(zone_meta) or ["zone_oak_creek_14", "zone_oak_creek_15"]
     zone_south, zone_north = zone_ids[0], zone_ids[-1]
@@ -222,14 +240,7 @@ async def seed(
     span = tract_to - tract_from
     raw: list[tuple[float, dict[str, Any], tuple[float, float]]] = []
     for _ in range(homes):
-        if rng.random() < 0.6:
-            frac = rng.choices(CLUSTERS, weights=[w for _, w in CLUSTERS])[0][0]
-            frac = min(1.0, max(0.0, rng.gauss(frac, 0.05)))
-        else:
-            frac = rng.random()
-        ch = tract_from + frac * span
-        offset = rng.choice((-1, 1)) * rng.uniform(40, 300)
-        loc = road.point_at(ch, offset)
+        loc = place_home(rng, road, tract_from, span)
         raw.append((fire_minutes(loc, ignition, wind_from), _pick_persona(rng, groups), loc))
 
     earliest = min(m for m, _, _ in raw)

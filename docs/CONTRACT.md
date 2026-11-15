@@ -159,6 +159,29 @@ Auth: dashboard and driver endpoints are open in demo mode. `/agent/*` and webho
 | GET | `/system/metrics` | → latency p50/p95, honesty, accuracy, dispatch results (`data/sim-results.json` from Yash) | Deep |
 | GET | `/health` | → `{ok, env, version, gitSha}` | Prem |
 
+### `data/sim-results.json` (Yash, D2-09; read by `/system/metrics` and slide 7)
+
+Made by `uv run --project api python -m api.sim.compare --seeds 50`. Everything in it is **simulated**.
+
+```jsonc
+{
+  "schema": 1, "simulated": true,
+  "label": "Simulated: 200 homes, Oak Creek Canyon scenario",   // print under the chart
+  "metric": "Share of people who needed a ride picked up before their deadline ...",
+  "generatedAt": "ISO", "gitSha": "abc1234", "seedsPerColumn": 50, "runs": 150,
+  "bars": [                                                     // in chart order
+    {"key": "today",  "label": "Today (911 queue)",          "available": true, "color": "orange",
+     "median": 47.6, "min": 36.6, "max": 52.7,                  // median of the middle column; whisker = min..max of column medians
+     "columns": {"low|middle|high": {"median", "p5", "p95", "runs"}}},
+    {"key": "greedy", "label": "Way Out (greedy dispatch)",  "available": true, "color": "blue", ...},
+    {"key": "ortools","label": "Way Out (OR-Tools)",         "available": false, "note": "..."}
+  ],
+  "headline": {"wayOutPct", "todayPct", "wayOutRange": [min, max], "todayRange": [min, max], "runsPerColumn", "text"},
+  "sensitivity": {"today55": {...}, "todayWithNeighbors": {...}},
+  "ridersPerRun": {...}, "settings": {...}, "fleets": {...}, "assumptions": {...}, "notClaimed": [...]
+}
+```
+
 ## 3. Live events (WebSocket `/live`)
 
 Server pushes `{type, data, at}`. Source: MongoDB change streams.

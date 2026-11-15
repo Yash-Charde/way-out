@@ -31,6 +31,7 @@ class Need:
     stretcher: int = 0
     crew: int = 1
     lift: bool = False
+    board_kind: str | None = None  # override the boarding class (the simulation knows walker vs walks)
 
     @classmethod
     def of(cls, d: dict[str, Any] | None) -> "Need":
@@ -43,14 +44,18 @@ class Need:
             lift=bool(d.get("lift")),
         )
 
-    def board_min(self) -> float:
+    def kind(self) -> str:
+        """Boarding class: walks | walker | wheelchair | lift | stretcher."""
+        if self.board_kind:
+            return self.board_kind
         if self.stretcher:
-            return BOARD_MIN["stretcher"]
+            return "stretcher"
         if self.lift or self.crew >= 2:
-            return BOARD_MIN["lift"] if self.wheelchair or self.lift else BOARD_MIN["walker"]
-        if self.wheelchair:
-            return BOARD_MIN["wheelchair"]
-        return BOARD_MIN["walks"]
+            return "lift" if self.wheelchair or self.lift else "walker"
+        return "wheelchair" if self.wheelchair else "walks"
+
+    def board_min(self, board: dict[str, float] | None = None) -> float:
+        return (board or BOARD_MIN)[self.kind()]
 
     def weight(self) -> float:
         """Need-weighted waiting: heavier needs count more."""
@@ -77,6 +82,8 @@ class Vehicle:
     crew: int = 1
     lift: bool = False
     committed: list[Rider] = field(default_factory=list)  # accepted + offered pickups, in order
+    ready_min: float = 0.0  # minutes until it can start from `loc` (busy finishing a trip)
+    load: tuple[int, int, int] = (0, 0, 0)  # seats, wheelchair, stretcher already on board at `loc`
 
     def fits(self, n: Need) -> bool:
         return (
@@ -139,7 +146,9 @@ def _nearest_shelter(loc: LonLat, shelters: list[Shelter], riders: int, travel: 
     return best
 
 
-def _visit(v: Vehicle, st: _State, r: Rider, shelters: list[Shelter], travel: Travel) -> tuple[_State, float] | None:
+def _visit(
+    v: Vehicle, st: _State, r: Rider, shelters: list[Shelter], travel: Travel, board: dict[str, float] | None = None
+) -> tuple[_State, float] | None:
     """Drive to `r` (dropping off first if full). → (new state, pickup time) or None if unreachable."""
     n = r.need
     s = _State(**st.__dict__)
@@ -163,7 +172,7 @@ def _visit(v: Vehicle, st: _State, r: Rider, shelters: list[Shelter], travel: Tr
     s.t += t
     s.drive += t
     pickup = s.t
-    s.t += n.board_min()
+    s.t += n.board_min(board)
     s.loc = r.loc
     s.seats += n.seats
     s.wheelchair += n.wheelchair
@@ -172,14 +181,21 @@ def _visit(v: Vehicle, st: _State, r: Rider, shelters: list[Shelter], travel: Tr
     return s, pickup
 
 
-def plan(riders: list[Rider], vehicles: list[Vehicle], shelters: list[Shelter], travel: Travel) -> Result:
+def plan(
+    riders: list[Rider],
+    vehicles: list[Vehicle],
+    shelters: list[Shelter],
+    travel: Travel,
+    board: dict[str, float] | None = None,
+) -> Result:
+    """`board` overrides the boarding minutes (the impact simulation runs low/middle/high)."""
     # v0: a shelter is usable while it has room for the load; room isn't drawn down within one plan.
     unreachable: list[str] = []
     states: dict[str, _State] = {}
     for v in vehicles:  # play out the committed run first; it never changes here
-        st = _State(loc=v.loc, t=0.0)
+        st = _State(loc=v.loc, t=v.ready_min, seats=v.load[0], wheelchair=v.load[1], stretcher=v.load[2])
         for r in v.committed:
-            nxt = _visit(v, st, r, shelters, travel)
+            nxt = _visit(v, st, r, shelters, travel, board)
             if nxt is None:
                 unreachable.append(r.id)
                 continue
@@ -200,7 +216,7 @@ def plan(riders: list[Rider], vehicles: list[Vehicle], shelters: list[Shelter], 
         for v in vehicles:
             if not v.fits(r.need):
                 continue
-            nxt = _visit(v, states[v.id], r, shelters, travel)
+            nxt = _visit(v, states[v.id], r, shelters, travel, board)
             if nxt is None:
                 continue
             st, pickup = nxt
