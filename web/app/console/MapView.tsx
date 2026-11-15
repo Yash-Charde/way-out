@@ -9,12 +9,16 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { MapboxOverlay, type MapboxOverlayProps } from "@deck.gl/mapbox";
-import { PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
+import { IconLayer, PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import { setWorkerUrl, type StyleSpecification } from "maplibre-gl";
 import type { Theme } from "@/lib/theme";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MapGL, { useControl, type MapLayerMouseEvent } from "react-map-gl/maplibre";
+import { addRelief, wayOutStyle } from "./mapStyle";
+import { BasemapSwitcher } from "@/components/BasemapSwitcher";
+import { RASTER, useBasemap, type Basemap } from "@/lib/basemaps";
+import type { FireView } from "@/lib/api";
 
 type Doc = { id: string } & Record<string, unknown>;
 type LonLat = [number, number];
@@ -30,6 +34,32 @@ export const COLORS: Record<string, RGBA> = {
   ink: [230, 233, 239, 255],
 };
 
+// Vehicles are drawn as top-down cars / vans pointing north; IconLayer turns them to their heading.
+// Paratransit and agency vans get the longer van shape; neighbors and volunteers a car.
+function vehicleSvg(kind: "car" | "van", body: string): string {
+  const len = kind === "van" ? 86 : 72;
+  const top = (96 - len) / 2;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96" viewBox="0 0 64 96">` +
+    `<rect x="14" y="${top}" width="36" height="${len}" rx="${kind === "van" ? 8 : 13}" fill="${body}" stroke="white" stroke-width="4"/>` +
+    // windshield (front = up), rear window, roof line
+    `<rect x="19" y="${top + 13}" width="26" height="${kind === "van" ? 12 : 14}" rx="4" fill="#0b1220" fill-opacity="0.78"/>` +
+    `<rect x="20" y="${top + len - 15}" width="24" height="8" rx="3" fill="#0b1220" fill-opacity="0.55"/>` +
+    `<rect x="22" y="${top + (kind === "van" ? 30 : 31)}" width="20" height="${len - (kind === "van" ? 50 : 50)}" rx="3" fill="white" fill-opacity="0.18"/>` +
+    // headlights
+    `<circle cx="20" cy="${top + 4}" r="2.4" fill="#fff6c2"/><circle cx="44" cy="${top + 4}" r="2.4" fill="#fff6c2"/>` +
+    `</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+const VEHICLE_ICONS = {
+  car: vehicleSvg("car", "#4da3ff"),
+  van: vehicleSvg("van", "#4da3ff"),
+  carAlert: vehicleSvg("car", "#ff4d3d"),
+  vanAlert: vehicleSvg("van", "#ff4d3d"),
+};
+const isVan = (v: Doc) => ["paratransit", "agency_van", "van"].includes(String(v.kind));
+const inDanger = (v: Doc) => ["sos", "man_down"].includes(String((v.safety as { state?: string } | undefined)?.state));
+
 const ROLE_COLOR: Record<string, RGBA> = {
   needs_ride: COLORS.fire,
   can_help: COLORS.help,
@@ -44,13 +74,28 @@ const STYLE_URL: Record<Theme, string> = {
   dark: process.env.NEXT_PUBLIC_MAP_STYLE || "https://tiles.openfreemap.org/styles/dark",
   light: process.env.NEXT_PUBLIC_MAP_STYLE_LIGHT || "https://tiles.openfreemap.org/styles/positron",
 };
+/** Satellite / Topo: raster tiles only; every label we need is drawn by deck.gl. */
+function rasterStyle(b: Basemap): StyleSpecification | null {
+  const r = RASTER[b];
+  if (!r) return null;
+  return {
+    version: 8,
+    sources: Object.fromEntries(
+      r.layers.map((l, i) => [
+        `base-${i}`,
+        { type: "raster", tiles: [l.url], tileSize: 256, maxzoom: l.maxzoom, ...(i === 0 ? { attribution: r.attribution } : {}) },
+      ]),
+    ),
+    layers: r.layers.map((l, i) => ({ id: `base-${i}`, type: "raster", source: `base-${i}`, paint: { "raster-opacity": l.opacity ?? 1 } })),
+  } as StyleSpecification;
+}
 const fallbackStyle = (theme: Theme): StyleSpecification => ({
   version: 8,
   sources: {},
-  layers: [{ id: "bg", type: "background", paint: { "background-color": theme === "dark" ? "#0b0e13" : "#eef0f3" } }],
+  layers: [{ id: "bg", type: "background", paint: { "background-color": theme === "dark" ? "#060a14" : "#eef3fa" } }],
 });
 // Halo around labels/lines (the page background) and label ink, per theme.
-const HALO: Record<Theme, RGBA> = { dark: [11, 14, 19, 255], light: [255, 255, 255, 255] };
+const HALO: Record<Theme, RGBA> = { dark: [6, 10, 20, 255], light: [238, 243, 250, 255] };
 const INK: Record<Theme, RGBA> = { dark: [230, 233, 239, 255], light: [18, 22, 29, 255] };
 const SHELTER_INK: Record<Theme, RGBA> = { dark: [167, 139, 250, 255], light: [109, 40, 217, 255] };
 const FONT = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -64,8 +109,9 @@ export const CANYON_BOUNDS: [[number, number], [number, number]] = [
   [-111.835, 34.845],
   [-111.715, 35.02],
 ];
-// The console's default: the canyon in the gap between its two side panels.
-const CONSOLE_PADDING: Padding = { top: 100, bottom: 70, left: 390, right: 420 };
+// The console's default: the canyon in the gap between its two side panels, below the KPI strip and
+// above the fire replay bar + legend.
+const CONSOLE_PADDING: Padding = { top: 150, bottom: 250, left: 390, right: 420 };
 
 function lonlat(doc: unknown): LonLat | null {
   const c = (doc as { location?: { coordinates?: number[] } } | undefined)?.location?.coordinates;
@@ -94,13 +140,38 @@ export type MapViewProps = {
   onMapClick: (p: LonLat) => void;
   theme?: Theme;
   padding?: Padding; // keeps the canyon clear of the page's panels
+  layersClassName?: string; // where the Map / Terrain / Topo / Satellite switch sits
+  fire?: FireView | null; // simulated fire replay (GET /hazards/fire)
 };
 
 export default function MapView(p: MapViewProps) {
   const theme: Theme = p.theme ?? "dark";
-  const [failed, setFailed] = useState(false); // basemap unreachable: plain background, layers still draw
+  // Base map: "map" = the original OpenFreeMap style; "terrain" = Way Out's recolor + hillshade;
+  // "topo" / "satellite" = raster tiles (lib/basemaps.ts). Remembered per browser.
+  const [basemap, setBasemap] = useBasemap("console", "map");
+  const styleKey = `${theme}-${basemap}`;
+  const [failedFor, setFailedFor] = useState<string | null>(null); // basemap unreachable: plain background
+  const failed = failedFor === styleKey;
   const [loaded, setLoaded] = useState(false);
-  const style = failed ? fallbackStyle(theme) : STYLE_URL[theme];
+  // Vector styles are fetched; the map mounts once the style is ready, so the deck.gl overlay never sees a
+  // style swap (a swap drops it). Raster styles are built locally.
+  const [styled, setStyled] = useState<{ key: string; style: StyleSpecification } | null>(null);
+  const raster = useMemo(() => rasterStyle(basemap), [basemap]);
+  useEffect(() => {
+    if (raster) return;
+    let off = false;
+    const key = `${theme}-${basemap}`;
+    fetch(STYLE_URL[theme])
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((s: StyleSpecification) => !off && setStyled({ key, style: basemap === "terrain" ? wayOutStyle(s, theme) : s }))
+      .catch(() => {
+        if (!off) setFailedFor(key);
+      });
+    return () => {
+      off = true;
+    };
+  }, [theme, basemap, raster]);
+  const style = failed ? fallbackStyle(theme) : raster ?? (styled?.key === styleKey ? styled.style : null);
   const halo = HALO[theme];
   const ink = INK[theme];
 
@@ -156,6 +227,34 @@ export default function MapView(p: MapViewProps) {
         getLineColor: [theme, p.zones.map((z) => z.status)],
       },
     }),
+    // Simulated fire replay: burned area so far + hotspots from the last 30 min (newest brightest).
+    new PolygonLayer<{ ring: LonLat[] }>({
+      id: "fire-burned",
+      data: p.fire && p.fire.burned.length > 3 ? [{ ring: p.fire.burned }] : [],
+      getPolygon: (d) => d.ring,
+      getFillColor: [255, 77, 61, theme === "dark" ? 46 : 38],
+      getLineColor: [255, 77, 61, 200],
+      getLineWidth: 1.5,
+      lineWidthUnits: "pixels",
+      updateTriggers: { getFillColor: theme },
+    }),
+    new ScatterplotLayer<FireView["active"][number]>({
+      id: "fire-active-glow",
+      data: p.fire?.active ?? [],
+      getPosition: (d) => [d.lon, d.lat],
+      getRadius: (d) => 4 + Math.min(9, d.frp / 8),
+      radiusUnits: "pixels",
+      getFillColor: (d) => [255, 120, 61, Math.round(70 * (1 - d.ageMin / 35))],
+    }),
+    new ScatterplotLayer<FireView["active"][number]>({
+      id: "fire-active",
+      data: p.fire?.active ?? [],
+      getPosition: (d) => [d.lon, d.lat],
+      getRadius: (d) => 1.5 + Math.min(4, d.frp / 20),
+      radiusUnits: "pixels",
+      getFillColor: (d) => [255, 77, 61, Math.round(255 - 150 * (d.ageMin / 30))],
+      pickable: true,
+    }),
     new PolygonLayer<Doc>({
       id: "fire",
       data: p.hazards.filter((h) => (h.geometry as { type?: string })?.type === "Polygon"),
@@ -192,6 +291,16 @@ export default function MapView(p: MapViewProps) {
       capRounded: true,
     }),
     new PathLayer<{ path: LonLat[]; status: string; id: string }>({
+      id: "routes-glow",
+      data: lines.filter((l) => l.status === "accepted" || l.id === p.highlightAssignmentId),
+      getPath: (l) => l.path,
+      getColor: [COLORS.vehicle[0], COLORS.vehicle[1], COLORS.vehicle[2], 55],
+      getWidth: 11,
+      widthUnits: "pixels",
+      capRounded: true,
+      jointRounded: true,
+    }),
+    new PathLayer<{ path: LonLat[]; status: string; id: string }>({
       id: "routes",
       data: lines,
       getPath: (l) => l.path,
@@ -206,6 +315,26 @@ export default function MapView(p: MapViewProps) {
       getWidth: (l) => (l.id === p.highlightAssignmentId ? 4 : l.status === "accepted" ? 3 : 1.5),
       widthUnits: "pixels",
       updateTriggers: { getColor: [theme, p.highlightAssignmentId], getWidth: p.highlightAssignmentId },
+    }),
+    // Glow: people who need a ride and our vans light up off the dark map.
+    new ScatterplotLayer<Doc>({
+      id: "homes-glow",
+      data: p.households.filter((h) => h.role === "needs_ride" && lonlat(h)),
+      getPosition: (h) => lonlat(h)!,
+      getRadius: 15,
+      radiusUnits: "pixels",
+      getFillColor: [COLORS.fire[0], COLORS.fire[1], COLORS.fire[2], theme === "dark" ? 60 : 45],
+      updateTriggers: { getFillColor: theme },
+    }),
+    new ScatterplotLayer<Doc>({
+      id: "vehicles-glow",
+      data: p.vehicles.filter((v) => lonlat(v)),
+      getPosition: (v) => lonlat(v)!,
+      getRadius: 19,
+      radiusUnits: "pixels",
+      getFillColor: [COLORS.vehicle[0], COLORS.vehicle[1], COLORS.vehicle[2], theme === "dark" ? 55 : 40],
+      transitions: { getPosition: 900 },
+      updateTriggers: { getFillColor: theme },
     }),
     new ScatterplotLayer<Doc>({
       id: "homes",
@@ -246,27 +375,21 @@ export default function MapView(p: MapViewProps) {
       getLineWidth: 1.5,
       lineWidthUnits: "pixels",
     }),
-    new ScatterplotLayer<Doc>({
+    new IconLayer<Doc>({
       id: "vehicles",
       data: p.vehicles.filter((v) => lonlat(v)),
       getPosition: (v) => lonlat(v)!,
-      getRadius: 8,
-      radiusUnits: "pixels",
-      getFillColor: (v) =>
-        (v.safety as { state?: string } | undefined)?.state === "sos" ||
-        (v.safety as { state?: string } | undefined)?.state === "man_down"
-          ? COLORS.fire
-          : COLORS.vehicle,
-      stroked: true,
-      getLineColor: (v) => (v.status === "offered" ? COLORS.help : ink),
-      getLineWidth: 2,
-      lineWidthUnits: "pixels",
-      pickable: true,
-      transitions: { getPosition: 900 },
-      updateTriggers: {
-        getFillColor: p.vehicles.map((v) => (v.safety as { state?: string } | undefined)?.state),
-        getLineColor: [theme, p.vehicles.map((v) => v.status)],
+      getIcon: (v) => {
+        const key = `${isVan(v) ? "van" : "car"}${inDanger(v) ? "Alert" : ""}` as keyof typeof VEHICLE_ICONS;
+        return { id: key, url: VEHICLE_ICONS[key], width: 64, height: 96, anchorY: 48, mask: false };
       },
+      getSize: (v) => (isVan(v) ? 40 : 34),
+      sizeUnits: "pixels",
+      getAngle: (v) => -Number(v.heading ?? 0), // heading: clockwise from north; deck: counter-clockwise
+      billboard: false,
+      pickable: true,
+      transitions: { getPosition: 900, getAngle: 400 },
+      updateTriggers: { getIcon: p.vehicles.map((v) => `${v.kind}|${inDanger(v)}`) },
     }),
     new TextLayer<Doc>({
       id: "vehicle-names",
@@ -275,7 +398,7 @@ export default function MapView(p: MapViewProps) {
       getText: (v) => String(v.driverName ?? v.id),
       getSize: 12,
       getColor: ink,
-      getPixelOffset: [0, -18],
+      getPixelOffset: [0, -26],
       fontWeight: 600,
       outlineWidth: 3,
       outlineColor: halo,
@@ -327,14 +450,38 @@ export default function MapView(p: MapViewProps) {
 
   const onClick = (e: MapLayerMouseEvent) => p.onMapClick([e.lngLat.lng, e.lngLat.lat]);
 
+  const layersSwitch = (
+    <BasemapSwitcher
+      vertical
+      value={basemap}
+      onChange={setBasemap}
+      className={p.layersClassName ?? "absolute top-1/2 right-[25.5rem] z-10 -translate-y-1/2"}
+    />
+  );
+  if (!style)
+    return (
+      <>
+        <div className="absolute inset-0 bg-bg" />
+        {layersSwitch}
+      </>
+    );
+
   return (
+    <>
     <MapGL
+      // A new basemap style drops the deck.gl overlay, so a theme switch (or the offline fallback) rebuilds the map.
+      key={`${styleKey}-${failed}`}
       initialViewState={{ bounds: CANYON_BOUNDS, fitBoundsOptions: { padding: p.padding ?? CONSOLE_PADDING } }}
       mapStyle={style}
       style={{ position: "absolute", inset: 0 }}
-      onLoad={() => setLoaded(true)}
-      onError={() => {
-        if (!loaded) setFailed(true); // basemap unreachable: keep going on a plain background
+      onLoad={(e) => {
+        setLoaded(true);
+        if (!failed && basemap === "terrain") addRelief(e.target, theme);
+      }}
+      onError={(e) => {
+        // Only a basemap failure before the first load means "offline": a missing terrain tile doesn't.
+        const ev = e as unknown as { sourceId?: string };
+        if (!loaded && ev.sourceId !== "wayout-terrain") setFailedFor(styleKey); // basemap unreachable: plain background
       }}
       onClick={onClick}
       cursor={p.drawing ? "crosshair" : undefined}
@@ -356,6 +503,10 @@ export default function MapView(p: MapViewProps) {
           const o = info.object as Doc | undefined;
           if (!o) return null;
           if (info.layer?.id === "vehicles") return `${o.driverName} · ${o.kind} · ${o.status}`;
+          if (info.layer?.id === "fire-active") {
+            const d = info.object as unknown as FireView["active"][number];
+            return `Hotspot (SIM) · ${d.frp} MW · ${Math.round(d.ageMin)} min ago`;
+          }
           if (info.layer?.id === "homes") {
             const r = requestByHousehold[o.id];
             return `${o.address}\n${String(o.role).replace("_", " ")}${r ? ` · ${r.status}` : ""}`;
@@ -364,5 +515,21 @@ export default function MapView(p: MapViewProps) {
         }}
       />
     </MapGL>
+    {/* Terrain view only: a faint coordinate grid and a vignette, so the map reads as an instrument. */}
+    {basemap === "terrain" && (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0"
+      style={{
+        backgroundImage:
+          "radial-gradient(ellipse at center, transparent 55%, color-mix(in srgb, var(--color-bg) 45%, transparent) 100%)," +
+          "linear-gradient(color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px)," +
+          "linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px)",
+        backgroundSize: "100% 100%, 64px 64px, 64px 64px",
+      }}
+    />
+    )}
+    {layersSwitch}
+    </>
   );
 }

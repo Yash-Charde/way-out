@@ -4,20 +4,20 @@ import { SimBadge } from "@/components/Shell";
 export function MapLegend({ className = "" }: { className?: string }) {
   const dot = (cls: string, label: string) => (
     <span className="flex items-center gap-1.5">
-      <span className={`inline-block h-2.5 w-2.5 rounded-full ${cls}`} />
+      <span className={`inline-block h-2 w-2 rounded-full ${cls}`} />
       {label}
     </span>
   );
   return (
-    <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-xs text-muted ${className}`}>
-      {dot("bg-fire", "needs a ride")}
+    <div className={`flex flex-wrap items-center gap-x-3.5 gap-y-1 px-3.5 py-2 text-[11px] text-muted ${className}`}>
+      {dot("bg-fire ring-2 ring-fire/25", "needs a ride")}
       {dot("bg-help", "can help")}
       {dot("bg-out", "left")}
       {dot("bg-unknown", "not reached")}
-      {dot("bg-vehicle ring-2 ring-ink", "vehicle")}
+      {dot("bg-vehicle ring-2 ring-vehicle/30", "vehicle")}
       {dot("bg-sim", "shelter")}
       <span className="flex items-center gap-1.5">
-        <span className="inline-block h-1 w-5 rounded bg-fire" />
+        <span className="inline-block h-1 w-4 rounded-full bg-fire" />
         road closed
       </span>
       <SimBadge />

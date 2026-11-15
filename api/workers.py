@@ -15,6 +15,7 @@ from api import assignments
 from api.agent import callbacks as callback_worker
 from api.agent import dialer, zonewatch
 from api.dispatch import loop as dispatch_loop
+from api.hazard import zones as fire_zones
 from api.live import WATCHED, watch_collection
 from api.sim import drivers as sim_drivers
 
@@ -42,6 +43,7 @@ def start(db: AsyncIOMotorDatabase) -> list[asyncio.Task]:
     tasks.append(asyncio.create_task(dialer.run(db), name="dialer"))
     tasks.append(asyncio.create_task(callback_worker.run(db), name="callbacks"))
     tasks.append(asyncio.create_task(zonewatch.run(db), name="tinyfish-watch"))
+    tasks.append(asyncio.create_task(fire_zones.run(db), name="fire-zones"))
     return tasks
 
 

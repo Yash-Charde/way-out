@@ -1,8 +1,13 @@
-"""GET /hazards, POST /hazards/photo."""
+"""GET /hazards, GET /hazards/fire, POST /hazards/photo."""
 
-from fastapi import APIRouter
+from datetime import datetime
+
+from fastapi import APIRouter, Query
 
 from api.core.db import get_db
+from api.core.util import utcnow
+from api.hazard import fire
+from api.hazard import zones as fire_zones
 from api.routes._util import not_yet, out
 
 router = APIRouter(prefix="/hazards", tags=["hazards"])
@@ -10,7 +15,7 @@ router = APIRouter(prefix="/hazards", tags=["hazards"])
 
 @router.get("")
 async def list_hazards() -> dict:
-    """TODO: add the fire front and per-home deadlines from api/hazard/spread.py."""
+    """Static layers. The fire replay is GET /hazards/fire."""
     db = get_db()
     return {
         "hazards": [out(h) async for h in db.hazards.find({})],
@@ -19,6 +24,21 @@ async def list_hazards() -> dict:
         # zone outlines (GET /zones leaves the polygon out); live status still comes from zone.updated
         "zones": [out(z) async for z in db.zones.find({}, {"name": 1, "status": 1, "polygon": 1})],
     }
+
+
+@router.get("/fire")
+async def fire_view(
+    at: datetime | None = Query(default=None, description="ISO time to replay to; default now"),
+) -> dict:
+    """The simulated fire as of `at`: burned area, active edge (last 30 min), 15-minute activity, homes
+    reached. Detections come from Tiger Data (`fire_detections` hypertable) when TIGER_DATABASE_URL is set,
+    otherwise from the same model in memory (`source` says which). Scenario input, not a forecast."""
+    when = at or utcnow()
+    view = await fire.view(get_db(), when)
+    if view["fire"] is not None:
+        # What the fire alone says each zone should be at `when` (SET 60 min out, GO 20 min out).
+        view["fire"]["zones"] = await fire_zones.levels_at(get_db(), when)
+    return view
 
 
 @router.post("/photo")

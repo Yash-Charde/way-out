@@ -87,7 +87,7 @@ class Callback(Doc):
 
 class Plan(Doc):
     version: int
-    solver: Literal["greedy", "ortools"]
+    solver: Literal["batched", "greedy", "ortools"]
     solveMs: float = 0
     objective: float | None = None
     changedOffers: int = 0

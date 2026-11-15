@@ -1,9 +1,10 @@
-"""Vehicles: list, a driver's run, phone presence, position, safety.
+"""Vehicles: list, a driver's run, phone presence, position, safety, Try-it volunteers.
 
 A phone that has the driver app open (presence or position in the last PHONE_FRESH_S) owns its vehicle:
 stand-in drivers (api/sim/drivers.py) leave it alone.
 """
 
+import hashlib
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
@@ -11,13 +12,14 @@ from pydantic import BaseModel
 
 from api import audit
 from api.core.db import get_db
-from api.core.util import utcnow
+from api.core.util import new_id, utcnow
 from api.routes._util import out
 from api.sim.geo import Road
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 
 PHONE_FRESH_S = 120
+MAX_VOLUNTEERS = 25  # Try-it volunteer cars at once (a reseed clears them)
 MAX_GPS_OFF_ROAD_M = 25_000  # farther than this from SR 89A = not in the scenario (demo phone elsewhere)
 _ROAD = Road()
 
@@ -65,7 +67,38 @@ async def run(vehicle_id: str) -> dict:
         async for a in db.assignments.find({"vehicleId": vehicle_id, "status": "accepted"}).sort("stopOrder", 1)
     ]
     shelters = [out(s) async for s in db.shelters.find({})]
-    return {"vehicle": out(v), "offers": offers, "run": stops, "shelters": shelters, "now": utcnow()}
+    return {
+        "vehicle": out(v),
+        "offers": offers,
+        "run": stops,
+        "shelters": shelters,
+        "seats": seats_summary(v, stops, offers),
+        "now": utcnow(),
+    }
+
+
+def seats_summary(v: dict, run: list[dict], offers: list[dict]) -> dict:
+    """Seats and wheelchair spaces: taken by the accepted run (on board or still to pick up), held by live
+    offers, and left. The planner fills a vehicle up to this before giving riders to the next one."""
+    cap = v.get("capacity") or {}
+
+    def total(rows: list[dict], key: str, default: int) -> int:
+        return sum(int(((r.get("request") or {}).get("need") or {}).get(key) or default) for r in rows)
+
+    seats, wc = int(cap.get("seats", 4)), int(cap.get("wheelchair", 0))
+    used, used_wc = total(run, "seats", 1), total(run, "wheelchair", 0)
+    held, held_wc = total(offers, "seats", 1), total(offers, "wheelchair", 0)
+    return {
+        "capacity": seats,
+        "wheelchair": wc,
+        "used": used,
+        "usedWheelchair": used_wc,
+        "offered": held,
+        "offeredWheelchair": held_wc,
+        "left": max(0, seats - used),
+        "leftWheelchair": max(0, wc - used_wc),
+        "leftIfAllAccepted": max(0, seats - used - held),
+    }
 
 
 @router.post("/{vehicle_id}/presence")
@@ -130,3 +163,55 @@ async def safety(vehicle_id: str, body: SafetyBody) -> dict:
     if body.state in ("man_down", "sos"):
         await audit.log(db, "driver_safety", body.state, vehicleId=vehicle_id)
     return {"ok": True}
+
+
+class VolunteerBody(BaseModel):
+    householdId: str
+    phone: str  # E.164, +1XXXXXXXXXX
+    name: str | None = None
+
+
+@router.post("/volunteer")
+async def volunteer(body: VolunteerBody) -> dict:
+    """Try it → "I can drive": a neighbor car parked at the chosen house, driven from the driver app.
+
+    One car per phone number (asking again moves it to the new house). Real, not simulated: stand-in
+    drivers leave it alone, so offers wait for this person (and expire to the next driver if ignored)."""
+    db = get_db()
+    if not body.phone.startswith("+1") or len(body.phone) != 12 or not body.phone[1:].isdigit():
+        raise HTTPException(422, "phone must be a US number (+1 and 10 digits)")
+    hh = await db.households.find_one({"_id": body.householdId})
+    if hh is None or not (hh.get("location") or {}).get("coordinates"):
+        raise HTTPException(404, "household not found")
+    phone_key = hashlib.sha256(body.phone.encode()).hexdigest()[:12]
+    now = utcnow()
+    name = (body.name or "").strip()[:30] or f"You (…{body.phone[-4:]})"
+    mine = await db.vehicles.find_one({"kind": "volunteer", "phoneKey": phone_key})
+    if mine is None and await db.vehicles.count_documents({"kind": "volunteer"}) >= MAX_VOLUNTEERS:
+        raise HTTPException(429, "enough volunteer drivers for now; try again after the next reseed")
+    vid = mine["_id"] if mine else new_id("vh_vol")
+    await db.vehicles.update_one(
+        {"_id": vid},
+        {
+            "$set": {
+                "kind": "volunteer",
+                "driverName": name,
+                "phone": body.phone,
+                "phoneKey": phone_key,
+                "capacity": {"seats": 3, "wheelchair": 0, "stretcher": 0},
+                "crew": 1,
+                "lift": False,
+                "location": hh["location"],
+                "homeId": hh["_id"],
+                "heading": 0,
+                "speedMps": 0,
+                "status": "idle",
+                "safety": {"state": "ok"},
+                "simulated": False,
+                "lastSeenAt": now,
+            }
+        },
+        upsert=True,
+    )
+    await audit.log(db, "volunteer_driver", f"{name} can drive from {hh.get('address', hh['_id'])}", vehicleId=vid)
+    return {"vehicleId": vid, "driverName": name, "address": hh.get("address"), "driverUrl": f"/driver?v={vid}"}

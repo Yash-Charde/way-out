@@ -27,6 +27,36 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 
 type Doc = { id: string } & Record<string, unknown>;
 
+/** GET /hazards/fire. Scenario input, not a forecast. */
+export type FireView = {
+  runId: string;
+  label: string;
+  simulated: true;
+  source: "tiger" | "model";
+  ignition: [number, number];
+  ignitedAt: string;
+  endsAt: string;
+  at: string;
+  elapsedMin: number;
+  windFromDeg: number;
+  burned: [number, number][];
+  acres: number;
+  active: { lon: number; lat: number; frp: number; ageMin: number }[];
+  hotspots: number;
+  activity: { at: string; hotspots: number; frp: number }[];
+  homesReached: number;
+  homesTotal: number;
+  /** What the fire alone says each zone should be at `at`: SET when the fire touches the zone, GO when it reaches its first home. */
+  zones?: {
+    zoneId: string;
+    level: "ready" | "set" | "go";
+    touchAt: string;
+    goAt: string | null;
+    setInMin: number; // minutes until the fire touches the zone (negative = already has)
+    goInMin: number | null; // minutes until it reaches the zone's first home
+  }[];
+};
+
 export const api = {
   health: () => call<{ ok: boolean; env: string; version: string; gitSha: string }>("GET", "/health"),
   households: (zoneId?: string) =>
@@ -34,6 +64,9 @@ export const api = {
   openRequests: () => call<Doc[]>("GET", "/requests/open"),
   vehicles: () => call<Doc[]>("GET", "/vehicles"),
   hazards: () => call<{ hazards: Doc[]; closures: Doc[]; shelters?: Doc[]; zones?: Doc[] }>("GET", "/hazards"),
+  /** The simulated fire as of `at` (ISO; default now). Detections from Tiger Data when configured. */
+  fire: (at?: string) =>
+    call<{ fire: FireView | null; reason?: string }>("GET", `/hazards/fire${at ? `?at=${encodeURIComponent(at)}` : ""}`),
   latestPlan: () => call<{ plan: Doc | null; assignments: Doc[] }>("GET", "/plans/latest"),
 
   approve: (id: string) => call<Doc>("POST", `/assignments/${id}/approve`),
@@ -65,11 +98,17 @@ export const api = {
       `/sim/seed?${new URLSearchParams(Object.entries(opts).map(([k, v]) => [k, String(v)])).toString()}`,
     ),
   census: () => call<{ requests: number }>("POST", "/sim/census"),
+  // fresh world + auto-approve + stand-in drivers: watch the fleet drive (speedup × real time)
+  driveTest: (speedup = 10) =>
+    call<{ plan: { proposals: number; autoApproved: number }; kmhOnScreen: number; metersPerSecond: number }>(
+      "POST",
+      `/sim/drive-test?speedup=${speedup}`,
+    ),
   simControl: (standIns?: Partial<StandIns>) =>
     standIns
       ? call<{ standIns: StandIns }>("POST", "/sim/control", { standIns })
       : call<{ standIns: StandIns }>("GET", "/sim/control"),
-  solve: (solver: "greedy" | "ortools" = "greedy") =>
+  solve: (solver: "batched" | "greedy" | "ortools" = "batched") =>
     call<{ version: number | null; proposals: number; unservable: number; solveMs: number }>(
       "POST",
       "/plans/solve",
@@ -80,6 +119,11 @@ export const api = {
   // kiosk: this house becomes the visitor's phone, then we call it
   kiosk: (householdId: string, phone: string) =>
     call<{ callId: string; householdId: string; address: string }>("POST", "/calls/kiosk", { householdId, phone }),
+  volunteer: (householdId: string, phone: string) =>
+    call<{ vehicleId: string; driverName: string; address: string; driverUrl: string }>("POST", "/vehicles/volunteer", {
+      householdId,
+      phone,
+    }),
   // call floor
   calls: (limit = 100) => call<CallSummary[]>("GET", `/calls?limit=${limit}`),
   call: (id: string) => call<CallDetail>("GET", `/calls/${encodeURIComponent(id)}`),
@@ -93,9 +137,20 @@ export type RunStop = Doc & {
   request: { id: string; status: string; need?: Record<string, unknown>; deadlineAt?: string; escalation?: string };
   household: { id: string; address?: string; location?: { coordinates: [number, number] }; language?: string };
 };
-export type DriverRun = { vehicle: Doc; offers: RunStop[]; run: RunStop[]; shelters: Doc[]; now: string };
+export type Seats = {
+  capacity: number;
+  wheelchair: number;
+  used: number;
+  usedWheelchair: number;
+  offered: number;
+  offeredWheelchair: number;
+  left: number;
+  leftWheelchair: number;
+  leftIfAllAccepted: number;
+};
+export type DriverRun = { vehicle: Doc; offers: RunStop[]; run: RunStop[]; shelters: Doc[]; seats?: Seats; now: string };
 
-export type StandIns = { voice: boolean; drivers: boolean; approval: boolean };
+export type StandIns = { voice: boolean; drivers: boolean; approval: boolean; fireZones: boolean };
 
 type Latency = { p50: number | null; p95: number | null; turns: number };
 export type EvalSummary = {

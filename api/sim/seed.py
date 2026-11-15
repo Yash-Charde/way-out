@@ -18,7 +18,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api import audit
 from api import requests as rq
-from api.core.util import utcnow
+from api.core.util import new_id, utcnow
 from api.sim import data
 from api.sim.geo import Road, meters
 
@@ -254,6 +254,9 @@ async def seed(
         raw.append((fire_minutes(loc, ignition, wind_from), _pick_persona(rng, groups), loc))
 
     earliest = min(m for m, _, _ in raw)
+    # The fire replay (api/hazard/fire.py) starts at this ignition time, so its front reaches each home
+    # exactly at that home's fireArrivalAt below.
+    ignited_at = now + timedelta(minutes=first_arrival_min - earliest)
     # A home the kiosk handed to a visitor keeps its hh_sim_ id but is real now (simulated: false), so the
     # reset above leaves it alone. Never reuse an id that's still taken.
     taken = {h["_id"] async for h in db.households.find({"_id": {"$regex": "^hh_sim_"}}, {"_id": 1})}
@@ -282,6 +285,12 @@ async def seed(
             }
         )
     await db.households.insert_many(docs)
+
+    from api.hazard import fire  # here, not at the top: api.hazard.spread imports this module
+    from api.hazard.spread import FireRun
+
+    run = FireRun(new_id("fire"), scenario, (float(ignition[0]), float(ignition[1])), wind_from, ignited_at)
+    await db.hazards.replace_one({"_id": fire.RUN_ID}, fire.run_doc(run), upsert=True)
 
     # ── vehicles ────────────────────────────────────────────────────────────
     starts = {
@@ -327,6 +336,7 @@ async def seed(
         "households": len(docs),
         "vehicles": len(vehicles),
         "shelters": len(SHELTERS),
+        "fire": {"runId": run.run_id, "ignitedAt": ignited_at},
         "zones": [zone_south, zone_north],
         "requests": requests,
         "removed": removed,

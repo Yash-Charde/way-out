@@ -61,11 +61,17 @@ def step_toward(road: Road, here: tuple[float, float], there: tuple[float, float
     → (new position, reached?) or None when a closure blocks the way."""
     if meters(here, there) <= max(AT_DOOR_M, 1e-9):
         return there, True
-    ch, ct = road.project(here)[0], road.project(there)[0]
+    (ch, off), ct = road.project(here), road.project(there)[0]
     if road.blocked(ch, ct):
         return None
-    if abs(ct - ch) > 2.0:  # drive along the road (snapping onto it)
-        nc = ch + math.copysign(min(step_m, abs(ct - ch)), ct - ch)
+    if abs(ct - ch) > 2.0:
+        if off > 2.0:  # parked at a house: drive the side street out to SR 89A first, at the same speed
+            on_road = road.point_at(ch)
+            if off <= step_m:
+                return on_road, False
+            f = step_m / meters(here, on_road)
+            return (here[0] + (on_road[0] - here[0]) * f, here[1] + (on_road[1] - here[1]) * f), False
+        nc = ch + math.copysign(min(step_m, abs(ct - ch)), ct - ch)  # along the road
         return road.point_at(nc), False
     left = meters(here, there)  # side street to the door
     if left <= step_m:
