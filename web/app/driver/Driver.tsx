@@ -11,6 +11,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SimBadge } from "@/components/Shell";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { LiveChip, Ring, Wordmark } from "@/components/ui";
 import { api, type DriverRun, type RunStop } from "@/lib/api";
 import { useLive } from "@/lib/live";
 
@@ -18,9 +20,10 @@ type Need = { seats?: number; wheelchair?: number; stretcher?: number; crew?: nu
 type Gps = { lon: number; lat: number; heading?: number; speedMps?: number };
 
 const ROAD_KMH = 35;
-const BIG = "min-h-14 w-full rounded-xl px-4 text-lg font-semibold active:scale-[0.99] disabled:opacity-50";
-const PRIMARY = `${BIG} bg-vehicle text-bg`;
-const SECONDARY = `${BIG} border border-line bg-panel text-ink`;
+const OFFER_SECONDS = 120; // offers count down from 2 minutes
+const PRIMARY = "btn btn-primary btn-lg min-h-14 w-full text-[17px]";
+const SECONDARY = "btn btn-lg min-h-14 w-full text-[17px]";
+const CARD = "card rounded-3xl! p-5";
 
 function needText(n?: Need): string {
   if (!n) return "";
@@ -56,6 +59,41 @@ function secondsLeft(iso: string | undefined, now: number): number {
   return Math.max(0, Math.round((t - now) / 1000));
 }
 
+function Avatar({ name, size = "h-11 w-11 text-sm" }: { name: string; size?: string }) {
+  return (
+    <span
+      className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-vehicle to-accent-2 font-semibold text-white shadow-sm ${size}`}
+    >
+      {name.slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
+
+function DriverTopBar({ live = true }: { live?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Wordmark href="/driver" />
+      <div className="flex items-center gap-2">
+        {live ? <LiveChip /> : <ThemeToggle />}
+      </div>
+    </div>
+  );
+}
+
+const STEPS = ["Accepted", "On my way", "Picked up", "Shelter"];
+function Stepper({ at }: { at: number }) {
+  return (
+    <ol className="flex items-center gap-1.5" aria-label="Pickup progress">
+      {STEPS.map((s, i) => (
+        <li key={s} className="flex flex-1 flex-col gap-1.5">
+          <span className={`h-1.5 rounded-full transition-colors ${i <= at ? "bg-accent" : "bg-line"}`} />
+          <span className={`text-[11px] ${i === at ? "font-semibold text-ink" : "text-muted"}`}>{s}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 // ── vehicle picker ───────────────────────────────────────────────────────────
 function Picker() {
   const [vehicles, setVehicles] = useState<DriverRun["vehicle"][] | null>(null);
@@ -63,24 +101,43 @@ function Picker() {
     api.vehicles().then(setVehicles).catch(() => setVehicles([]));
   }, []);
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 p-4">
-      <h1 className="text-2xl font-semibold">Way Out · Driver</h1>
-      <p className="text-muted">Which vehicle are you driving?</p>
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-5 pt-5 pb-10">
+      <DriverTopBar live={false} />
+      <div className="flex flex-col gap-3">
+        <span className="eyebrow">Driver app</span>
+        <h1 className="display text-[2.4rem]">
+          Who&apos;s driving
+          <br />
+          <span className="text-muted">tonight?</span>
+        </h1>
+        <p className="text-muted">Pick your vehicle. Offers show up here the moment dispatch approves a pickup.</p>
+      </div>
       {vehicles === null && <p className="text-muted">Loading…</p>}
-      {vehicles?.length === 0 && <p className="text-muted">No vehicles yet. Seed the scenario from the console.</p>}
-      {vehicles?.map((v) => (
-        <Link
-          key={v.id}
-          href={`/driver?v=${encodeURIComponent(v.id)}`}
-          className="flex min-h-14 items-center justify-between rounded-xl border border-line bg-panel px-4"
-        >
-          <span className="text-lg">{String(v.driverName)}</span>
-          <span className="flex items-center gap-2 text-sm text-muted">
-            {String(v.kind)}
-            {!!v.simulated && <SimBadge />}
-          </span>
-        </Link>
-      ))}
+      {vehicles?.length === 0 && (
+        <p className="rounded-3xl border border-dashed border-line p-6 text-center text-muted">
+          No vehicles yet. Seed the scenario from the console.
+        </p>
+      )}
+      <ul className="flex flex-col gap-2.5">
+        {vehicles?.map((v) => (
+          <li key={v.id}>
+            <Link
+              href={`/driver?v=${encodeURIComponent(v.id)}`}
+              className="card flex min-h-16 items-center gap-3 rounded-2xl! px-4 py-3 transition-colors hover:border-line-strong"
+            >
+              <Avatar name={String(v.driverName)} />
+              <span className="flex-1">
+                <span className="block text-[17px] font-semibold tracking-[-0.01em]">{String(v.driverName)}</span>
+                <span className="block text-sm text-muted">{String(v.kind).replace(/_/g, " ")}</span>
+              </span>
+              {!!v.simulated && <SimBadge />}
+              <svg viewBox="0 0 24 24" className="h-4 w-4 text-muted" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }
@@ -112,9 +169,15 @@ function SosButton({ vehicleId, gps }: { vehicleId: string; gps: Gps | null }) {
   if (sent) {
     return (
       <div className="flex items-center gap-2">
-        <span className="flex-1 rounded-xl bg-fire/20 px-4 py-3 font-semibold text-fire">SOS sent to dispatch</span>
+        <span className="flex min-h-14 flex-1 items-center gap-2.5 rounded-full bg-fire px-5 font-semibold text-white">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inset-0 animate-ping-slow rounded-full bg-white" />
+            <span className="relative h-2.5 w-2.5 rounded-full bg-white" />
+          </span>
+          SOS sent to dispatch
+        </span>
         <button
-          className="min-h-12 rounded-xl border border-line px-4"
+          className="btn btn-lg min-h-14"
           onClick={async () => {
             await api.safety(vehicleId, { state: "ok" }).catch(() => undefined);
             setSent(false);
@@ -127,15 +190,18 @@ function SosButton({ vehicleId, gps }: { vehicleId: string; gps: Gps | null }) {
   }
   return (
     <button
-      className={`min-h-12 w-full select-none rounded-xl border-2 border-fire/70 font-semibold text-fire transition ${
-        holding ? "bg-fire/30" : "bg-transparent"
-      }`}
+      className="relative min-h-14 w-full touch-none overflow-hidden rounded-full border-2 border-fire/70 bg-panel font-semibold text-fire select-none"
       onPointerDown={start}
       onPointerUp={stop}
       onPointerLeave={stop}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {holding ? "Keep holding…" : "Hold 2 s for SOS"}
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-0 bg-fire/20"
+        style={{ width: holding ? "100%" : "0%", transition: holding ? "width 2s linear" : "width 0.2s ease-out" }}
+      />
+      <span className="relative">{holding ? "Keep holding…" : "Hold 2 s for SOS"}</span>
     </button>
   );
 }
@@ -241,7 +307,7 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
 
   if (!data) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center p-4 text-muted">
+      <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center p-5 text-center text-muted">
         {error ? `Can't load this vehicle: ${error}` : "Loading…"}
       </main>
     );
@@ -256,20 +322,20 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
   const shelter = data.shelters[0] as (RunStop["household"] & { name?: string }) | undefined;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 p-4 pb-28">
-      <header className="flex items-center justify-between">
-        <div>
-          <div className="text-xl font-semibold">{String(v.driverName)}</div>
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-5 pt-5 pb-32">
+      <DriverTopBar />
+      <header className="flex items-center gap-3">
+        <Avatar name={String(v.driverName)} size="h-12 w-12 text-base" />
+        <div className="min-w-0 flex-1">
+          <div className="text-xl font-semibold tracking-[-0.02em]">{String(v.driverName)}</div>
           <div className="flex items-center gap-2 text-sm text-muted">
-            {String(v.kind)} {!!v.simulated && <SimBadge />}
+            {String(v.kind).replace(/_/g, " ")} {!!v.simulated && <SimBadge />}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 text-xs text-muted">
-          <span className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${connected ? "bg-out" : "bg-unknown"}`} />
-            {connected ? "live" : "reconnecting"}
-          </span>
-          <span className={gpsState === "on" && gpsApplied ? "text-out" : gpsState === "off" ? "" : "text-help"}>
+          <span
+            className={`chip ${gpsState === "on" && gpsApplied ? "border-out/40 text-out" : gpsState === "off" ? "" : "border-help/40 text-help"}`}
+          >
             GPS{" "}
             {gpsState === "denied"
               ? "blocked: allow location"
@@ -277,16 +343,20 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
                 ? "off"
                 : gpsApplied
                   ? "on"
-                  : "on · outside the canyon, van stays put (demo)"}
+                  : "on · outside canyon (demo)"}
           </span>
+          {!connected && <span className="text-help">reconnecting</span>}
         </div>
       </header>
 
-      {error && <div className="rounded-lg border border-help/50 px-3 py-2 text-sm text-help">{error}</div>}
+      {error && <div className="rounded-2xl bg-help/10 px-4 py-3 text-sm text-help">{error}</div>}
 
       {changed && (
-        <section className="rounded-2xl border border-help/60 bg-panel p-4">
-          <h2 className="text-lg font-semibold text-help">Assignment changed</h2>
+        <section className={`${CARD} animate-rise border-help/50`}>
+          <span className="eyebrow" style={{ "--eyebrow-dot": "var(--color-help)" } as React.CSSProperties}>
+            Heads up
+          </span>
+          <h2 className="mt-2 text-lg font-semibold">Assignment changed</h2>
           <p className="mt-1 text-muted">This pickup moved to another plan. You don&apos;t need to do anything.</p>
           <button className={`${SECONDARY} mt-3`} onClick={() => setChanged(false)}>
             OK
@@ -295,22 +365,32 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
       )}
 
       {offer && (
-        <section className="rounded-2xl border-2 border-vehicle bg-panel p-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-vehicle">New pickup</h2>
-            <span className="tabular-nums text-muted">
-              {Math.floor(secondsLeft(offer.expiresAt, now) / 60)}:
-              {String(secondsLeft(offer.expiresAt, now) % 60).padStart(2, "0")} left
-            </span>
+        <section className="animate-rise overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-night to-night-2 p-5 text-white shadow-[var(--shadow-float)]">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <span className="eyebrow text-white/60" style={{ "--eyebrow-dot": "#8fa6ff" } as React.CSSProperties}>
+                New pickup
+              </span>
+              <p className="mt-2 text-[1.45rem] leading-tight font-semibold tracking-[-0.02em]">{offer.household.address}</p>
+              <p className="mt-2 text-white/75">{needText(offer.request.need as Need)}</p>
+              <p className="mt-0.5 text-white/75">About {Math.round(Number(offer.etaMinutes ?? 0))} min away</p>
+            </div>
+            <Ring value={secondsLeft(offer.expiresAt, now)} max={OFFER_SECONDS} size={84} stroke={7} tone="#8fa6ff">
+              <span className="font-mono text-base font-semibold tabular-nums">
+                {Math.floor(secondsLeft(offer.expiresAt, now) / 60)}:{String(secondsLeft(offer.expiresAt, now) % 60).padStart(2, "0")}
+              </span>
+              <span className="text-[10px] text-white/60">left</span>
+            </Ring>
           </div>
-          <p className="mt-2 text-xl font-semibold">{offer.household.address}</p>
-          <p className="mt-1 text-muted">{needText(offer.request.need as Need)}</p>
-          <p className="mt-1 text-muted">About {Math.round(Number(offer.etaMinutes ?? 0))} min away</p>
-          <div className="mt-4 grid gap-2">
+          <div className="mt-5 grid gap-2.5">
             <button className={PRIMARY} disabled={busy} onClick={() => accept(offer)}>
               Accept
             </button>
-            <button className={SECONDARY} disabled={busy} onClick={() => act(() => api.decline(offer.id))}>
+            <button
+              className="btn btn-lg min-h-14 w-full border-white/20 bg-white/10 text-[17px] text-white hover:bg-white/15"
+              disabled={busy}
+              onClick={() => act(() => api.decline(offer.id))}
+            >
               Decline
             </button>
           </div>
@@ -318,14 +398,13 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
       )}
 
       {current ? (
-        <section className="rounded-2xl bg-panel p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">
-            {current.request.status === "en_route" ? "On the way to" : "Next pickup"}
-          </h2>
-          <p className="mt-1 text-xl font-semibold">{current.household.address}</p>
-          <p className="mt-1 text-muted">{needText(current.request.need as Need)}</p>
+        <section className={CARD}>
+          <Stepper at={current.request.status === "en_route" ? 1 : 0} />
+          <span className="eyebrow mt-5">{current.request.status === "en_route" ? "On the way to" : "Next pickup"}</span>
+          <p className="mt-1.5 text-[1.45rem] leading-tight font-semibold tracking-[-0.02em]">{current.household.address}</p>
+          <p className="mt-1.5 text-muted">{needText(current.request.need as Need)}</p>
           {directions(current.household.location) && (
-            <a className="mt-2 inline-block text-vehicle underline" href={directions(current.household.location)!}>
+            <a className="btn mt-3 min-h-11" href={directions(current.household.location)!}>
               Directions
             </a>
           )}
@@ -370,7 +449,7 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
                 </button>
               </div>
             ) : (
-              <button className="min-h-12 text-muted underline" onClick={() => setConfirmCancel(true)}>
+              <button className="min-h-12 text-sm text-muted underline-offset-4 hover:underline" onClick={() => setConfirmCancel(true)}>
                 I can&apos;t make this pickup
               </button>
             )}
@@ -379,18 +458,26 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
       ) : (
         !offer &&
         onboard.length === 0 && (
-          <section className="rounded-2xl border border-line p-6 text-center text-muted">
-            No pickups right now. Keep this screen open; new ones appear here.
+          <section className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-line px-6 py-10 text-center">
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inset-0 animate-ping-slow rounded-full bg-accent" />
+              <span className="relative h-3 w-3 rounded-full bg-accent" />
+            </span>
+            <p className="font-medium">Standing by</p>
+            <p className="text-sm text-muted">No pickups right now. Keep this screen open; new ones appear here.</p>
           </section>
         )
       )}
 
       {onboard.length > 0 && !current && (
-        <section className="rounded-2xl bg-panel p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">On board: {people} {people === 1 ? "person" : "people"}</h2>
-          <p className="mt-1 text-xl font-semibold">{String(shelter?.name ?? "Shelter")}</p>
+        <section className={CARD}>
+          <Stepper at={2} />
+          <span className="eyebrow mt-5" style={{ "--eyebrow-dot": "var(--color-out)" } as React.CSSProperties}>
+            On board: {people} {people === 1 ? "person" : "people"}
+          </span>
+          <p className="mt-1.5 text-[1.45rem] leading-tight font-semibold tracking-[-0.02em]">{String(shelter?.name ?? "Shelter")}</p>
           {directions(shelter?.location) && (
-            <a className="mt-2 inline-block text-vehicle underline" href={directions(shelter?.location)!}>
+            <a className="btn mt-3 min-h-11" href={directions(shelter?.location)!}>
               Directions
             </a>
           )}
@@ -410,26 +497,29 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
 
       {(later.length > 0 || (onboard.length > 0 && current)) && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">Your run</h2>
-          <ol className="flex flex-col gap-1">
+          <h2 className="eyebrow mb-3">Your run</h2>
+          <ol className="flex flex-col gap-2">
             {onboard.length > 0 && current && (
-              <li className="rounded-lg border border-line px-3 py-2 text-sm text-out">
+              <li className="rounded-2xl bg-out/10 px-4 py-3 text-sm font-medium text-out">
                 On board: {people} {people === 1 ? "person" : "people"}
               </li>
             )}
             {later.map((s, i) => (
-              <li key={s.id} className="rounded-lg border border-line px-3 py-2">
-                <div className="text-sm">
-                  {i + 2}. {s.household.address}
-                </div>
+              <li key={s.id} className="flex items-start gap-3 rounded-2xl border border-line bg-panel px-4 py-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-panel-2 font-mono text-[11px] font-semibold text-muted">
+                  {i + 2}
+                </span>
+                <div className="min-w-0">
+                <div className="text-sm font-medium">{s.household.address}</div>
                 <div className="text-xs text-muted">{needText(s.request.need as Need)}</div>
+                </div>
               </li>
             ))}
           </ol>
         </section>
       )}
 
-      <footer className="fixed inset-x-0 bottom-0 mx-auto max-w-md bg-bg/95 p-4 backdrop-blur">
+      <footer className="fixed inset-x-0 bottom-0 mx-auto max-w-md border-t border-line bg-bg/85 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
         <SosButton vehicleId={vehicleId} gps={gps} />
       </footer>
     </main>

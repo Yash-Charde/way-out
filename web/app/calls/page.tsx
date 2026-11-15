@@ -6,6 +6,7 @@
  * and a latency chip on every agent turn. REST only on load and after a reconnect.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatedNumber, AppHeader } from "@/components/ui";
 import { api, type CallDetail as Detail, type CallSummary, type CallTurn, type HouseholdRecord } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { CallDetail } from "./CallDetail";
@@ -136,26 +137,28 @@ export default function CallsPage() {
 
   return (
     <main className="flex h-dvh flex-col">
-      <header className="flex items-center gap-4 border-b border-line bg-panel px-4 py-3">
-        <span className="font-semibold">Way Out</span>
-        <span className="text-muted">/ Call floor</span>
-        <div className="ml-auto flex items-center gap-4 text-sm">
+      <AppHeader />
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-4 pt-6 pb-5 sm:px-6">
+        <div className="flex flex-col gap-2">
+          <span className="eyebrow">Call floor</span>
+          <h1 className="display text-3xl sm:text-4xl">
+            Every call, <span className="text-muted">as it happens.</span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
           <Counter label="in call" value={liveCalls.length} />
           <Counter label="need a ride" value={needsRide} tone="text-fire" />
-          <span className="flex items-center gap-1.5 text-xs text-muted">
-            <span className={`h-2 w-2 rounded-full ${connected ? "bg-out" : "bg-unknown"}`} />
-            {connected ? "live" : "offline"}
-          </span>
+          <Counter label="all calls" value={merged.length} />
         </div>
-      </header>
+      </div>
       {error && (
-        <p className="border-b border-help/40 bg-help/10 px-4 py-2 text-sm text-help">
+        <p className="border-b border-help/30 bg-help/10 px-6 py-2 text-sm text-help">
           Can&apos;t reach the API ({error}). Retrying when the connection comes back.
         </p>
       )}
       <div className="flex min-h-0 flex-1">
-        <nav className="flex w-80 shrink-0 flex-col border-r border-line">
-          <div className="flex gap-1 border-b border-line p-2">
+        <nav className="flex w-80 shrink-0 flex-col border-r border-line bg-panel">
+          <div className="m-3 flex gap-1 rounded-full border border-line bg-panel-2 p-1">
             {(["live", "ended"] as const).map((t) => (
               <button
                 key={t}
@@ -164,13 +167,15 @@ export default function CallsPage() {
                   setTab(t);
                   setSelected(null);
                 }}
-                className={`flex-1 rounded px-2 py-1.5 text-sm ${tab === t ? "bg-ink/10 text-ink" : "text-muted hover:text-ink"}`}
+                className={`flex-1 rounded-full px-2 py-1.5 text-[13px] transition-colors ${
+                  tab === t ? "bg-panel font-medium text-ink shadow-[0_1px_3px_rgb(16_24_40/0.12)]" : "text-muted hover:text-ink"
+                }`}
               >
                 {t === "live" ? `Live (${liveCalls.length})` : `Ended (${ended.length})`}
               </button>
             ))}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="scroll-soft min-h-0 flex-1 overflow-y-auto">
             <CallList calls={visible} selected={current} onSelect={setSelected} now={now} />
           </div>
         </nav>
@@ -184,7 +189,10 @@ export default function CallsPage() {
               requestStatus={requestStatus}
             />
           ) : (
-            <p className="m-auto text-sm text-muted">Select a call to see its transcript.</p>
+            <div className="m-auto flex flex-col items-center gap-2 text-center">
+              <span className="eyebrow">No call selected</span>
+              <p className="text-sm text-muted">Calls appear on the left the moment one connects.</p>
+            </div>
           )}
         </section>
       </div>
@@ -194,11 +202,11 @@ export default function CallsPage() {
 
 function Counter({ label, value, tone = "text-ink" }: { label: string; value: number; tone?: string }) {
   return (
-    <span className="flex items-baseline gap-1.5">
-      <span key={value} className={`animate-flash rounded px-1 text-base font-semibold tabular-nums ${tone}`}>
-        {value}
+    <span className="card flex min-w-24 flex-col rounded-2xl! px-4 py-2.5 shadow-none!">
+      <span className={`text-2xl leading-none font-semibold tracking-[-0.03em] tabular-nums ${tone}`}>
+        <AnimatedNumber value={value} />
       </span>
-      <span className="text-muted">{label}</span>
+      <span className="mt-1 text-[11px] text-muted">{label}</span>
     </span>
   );
 }

@@ -13,8 +13,9 @@ import { PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "@deck.gl/l
 import type { PickingInfo } from "@deck.gl/core";
 import { setWorkerUrl, type StyleSpecification } from "maplibre-gl";
 import type { Theme } from "@/lib/theme";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MapGL, { useControl, type MapLayerMouseEvent } from "react-map-gl/maplibre";
+import { addRelief, wayOutStyle } from "./mapStyle";
 
 type Doc = { id: string } & Record<string, unknown>;
 type LonLat = [number, number];
@@ -47,10 +48,10 @@ const STYLE_URL: Record<Theme, string> = {
 const fallbackStyle = (theme: Theme): StyleSpecification => ({
   version: 8,
   sources: {},
-  layers: [{ id: "bg", type: "background", paint: { "background-color": theme === "dark" ? "#0b0e13" : "#eef0f3" } }],
+  layers: [{ id: "bg", type: "background", paint: { "background-color": theme === "dark" ? "#060a14" : "#eef3fa" } }],
 });
 // Halo around labels/lines (the page background) and label ink, per theme.
-const HALO: Record<Theme, RGBA> = { dark: [11, 14, 19, 255], light: [255, 255, 255, 255] };
+const HALO: Record<Theme, RGBA> = { dark: [6, 10, 20, 255], light: [238, 243, 250, 255] };
 const INK: Record<Theme, RGBA> = { dark: [230, 233, 239, 255], light: [18, 22, 29, 255] };
 const SHELTER_INK: Record<Theme, RGBA> = { dark: [167, 139, 250, 255], light: [109, 40, 217, 255] };
 const FONT = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -100,7 +101,22 @@ export default function MapView(p: MapViewProps) {
   const theme: Theme = p.theme ?? "dark";
   const [failed, setFailed] = useState(false); // basemap unreachable: plain background, layers still draw
   const [loaded, setLoaded] = useState(false);
-  const style = failed ? fallbackStyle(theme) : STYLE_URL[theme];
+  // Our recolored style (mapStyle.ts). The map mounts once it's ready, so the deck.gl overlay never
+  // sees a style swap (a swap drops it).
+  const [styled, setStyled] = useState<{ theme: Theme; style: StyleSpecification } | null>(null);
+  useEffect(() => {
+    let off = false;
+    fetch(STYLE_URL[theme])
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((s: StyleSpecification) => !off && setStyled({ theme, style: wayOutStyle(s, theme) }))
+      .catch(() => {
+        if (!off) setFailed(true);
+      });
+    return () => {
+      off = true;
+    };
+  }, [theme]);
+  const style = failed ? fallbackStyle(theme) : styled?.theme === theme ? styled.style : null;
   const halo = HALO[theme];
   const ink = INK[theme];
 
@@ -192,6 +208,16 @@ export default function MapView(p: MapViewProps) {
       capRounded: true,
     }),
     new PathLayer<{ path: LonLat[]; status: string; id: string }>({
+      id: "routes-glow",
+      data: lines.filter((l) => l.status === "accepted" || l.id === p.highlightAssignmentId),
+      getPath: (l) => l.path,
+      getColor: [COLORS.vehicle[0], COLORS.vehicle[1], COLORS.vehicle[2], 55],
+      getWidth: 11,
+      widthUnits: "pixels",
+      capRounded: true,
+      jointRounded: true,
+    }),
+    new PathLayer<{ path: LonLat[]; status: string; id: string }>({
       id: "routes",
       data: lines,
       getPath: (l) => l.path,
@@ -206,6 +232,26 @@ export default function MapView(p: MapViewProps) {
       getWidth: (l) => (l.id === p.highlightAssignmentId ? 4 : l.status === "accepted" ? 3 : 1.5),
       widthUnits: "pixels",
       updateTriggers: { getColor: [theme, p.highlightAssignmentId], getWidth: p.highlightAssignmentId },
+    }),
+    // Glow: people who need a ride and our vans light up off the dark map.
+    new ScatterplotLayer<Doc>({
+      id: "homes-glow",
+      data: p.households.filter((h) => h.role === "needs_ride" && lonlat(h)),
+      getPosition: (h) => lonlat(h)!,
+      getRadius: 15,
+      radiusUnits: "pixels",
+      getFillColor: [COLORS.fire[0], COLORS.fire[1], COLORS.fire[2], theme === "dark" ? 60 : 45],
+      updateTriggers: { getFillColor: theme },
+    }),
+    new ScatterplotLayer<Doc>({
+      id: "vehicles-glow",
+      data: p.vehicles.filter((v) => lonlat(v)),
+      getPosition: (v) => lonlat(v)!,
+      getRadius: 19,
+      radiusUnits: "pixels",
+      getFillColor: [COLORS.vehicle[0], COLORS.vehicle[1], COLORS.vehicle[2], theme === "dark" ? 55 : 40],
+      transitions: { getPosition: 900 },
+      updateTriggers: { getFillColor: theme },
     }),
     new ScatterplotLayer<Doc>({
       id: "homes",
@@ -327,14 +373,24 @@ export default function MapView(p: MapViewProps) {
 
   const onClick = (e: MapLayerMouseEvent) => p.onMapClick([e.lngLat.lng, e.lngLat.lat]);
 
+  if (!style) return <div className="absolute inset-0 bg-bg" />;
+
   return (
+    <>
     <MapGL
+      // A new basemap style drops the deck.gl overlay, so a theme switch (or the offline fallback) rebuilds the map.
+      key={`${theme}-${failed}`}
       initialViewState={{ bounds: CANYON_BOUNDS, fitBoundsOptions: { padding: p.padding ?? CONSOLE_PADDING } }}
       mapStyle={style}
       style={{ position: "absolute", inset: 0 }}
-      onLoad={() => setLoaded(true)}
-      onError={() => {
-        if (!loaded) setFailed(true); // basemap unreachable: keep going on a plain background
+      onLoad={(e) => {
+        setLoaded(true);
+        if (!failed) addRelief(e.target, theme);
+      }}
+      onError={(e) => {
+        // Only a basemap failure before the first load means "offline": a missing terrain tile doesn't.
+        const ev = e as unknown as { sourceId?: string };
+        if (!loaded && ev.sourceId !== "wayout-terrain") setFailed(true); // basemap unreachable: plain background
       }}
       onClick={onClick}
       cursor={p.drawing ? "crosshair" : undefined}
@@ -364,5 +420,18 @@ export default function MapView(p: MapViewProps) {
         }}
       />
     </MapGL>
+    {/* A faint coordinate grid and a vignette: the map reads as an instrument, not a web page. */}
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0"
+      style={{
+        backgroundImage:
+          "radial-gradient(ellipse at center, transparent 55%, color-mix(in srgb, var(--color-bg) 45%, transparent) 100%)," +
+          "linear-gradient(color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px)," +
+          "linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px)",
+        backgroundSize: "100% 100%, 64px 64px, 64px 64px",
+      }}
+    />
+    </>
   );
 }

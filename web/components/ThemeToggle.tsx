@@ -39,7 +39,7 @@ export function ThemeToggle({ labels = "never" }: { labels?: "never" | "wide" | 
   const { mode, setMode } = useTheme();
   const labelClass = labels === "always" ? "" : labels === "wide" ? "hidden sm:inline" : "sr-only";
   return (
-    <div role="radiogroup" aria-label="Theme" className="flex rounded-lg border border-line bg-panel p-0.5 text-xs">
+    <div role="radiogroup" aria-label="Theme" className="flex rounded-full border border-line bg-panel p-0.5 text-xs shadow-[0_1px_2px_rgb(16_24_40/0.05)]">
       {OPTIONS.map((o) => (
         <button
           key={o.mode}
@@ -48,8 +48,8 @@ export function ThemeToggle({ labels = "never" }: { labels?: "never" | "wide" | 
           aria-checked={mode === o.mode}
           title={`${o.label} theme`}
           onClick={() => setMode(o.mode)}
-          className={`flex min-h-7 items-center gap-1.5 rounded-md px-2 transition-colors ${
-            mode === o.mode ? "bg-ink/10 text-ink" : "text-muted hover:text-ink"
+          className={`flex h-7 min-w-7 items-center justify-center gap-1.5 rounded-full px-2 transition-colors ${
+            mode === o.mode ? "bg-panel-2 text-accent ring-1 ring-line" : "text-muted hover:text-ink"
           }`}
         >
           {ICON[o.mode]}
