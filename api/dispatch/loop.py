@@ -74,7 +74,15 @@ async def road_with_closures(db: AsyncIOMotorDatabase) -> Road | Grid:
 async def sim_control(db: AsyncIOMotorDatabase) -> dict[str, bool]:
     doc = await db.simControl.find_one({"_id": "sim"}) or {}
     # fireZones: the simulated fire moves zones READY → SET → GO (api/hazard/zones.py). On by default.
-    return {"voice": False, "drivers": False, "approval": False, "fireZones": True, **(doc.get("standIns") or {})}
+    # realCalls: the dialer and callbacks may ring real phones (Try-it visitors). A drive test turns it off.
+    return {
+        "voice": False,
+        "drivers": False,
+        "approval": False,
+        "fireZones": True,
+        "realCalls": True,
+        **(doc.get("standIns") or {}),
+    }
 
 
 async def fire_unsafe(db: AsyncIOMotorDatabase, locs: dict[str, tuple[float, float]], now: datetime) -> set[str]:

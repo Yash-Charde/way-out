@@ -107,6 +107,7 @@ class StandIns(BaseModel):
     drivers: bool | None = None
     approval: bool | None = None
     fireZones: bool | None = None
+    realCalls: bool | None = None
 
 
 class SimControl(BaseModel):
@@ -117,6 +118,7 @@ class SimControl(BaseModel):
 @router.post("/control")
 async def control(body: SimControl) -> dict:
     """Toggle stand-ins. `approval`: proposals are approved automatically (stand-in dispatcher).
+    `realCalls`: false = the dialer and callbacks never ring real phones (Try-it visitors).
     `drivers`: simulated vehicles accept and drive their runs (api/sim/drivers.py). `voice`:
     stand-in residents. `speedup`: stand-in drivers move and board N× faster (demo)."""
     db = get_db()
@@ -149,7 +151,8 @@ async def drive_test(
     """Watch the fleet really drive: fresh world with every home answered, auto-approve on, stand-in drivers
     on. Each vehicle then accepts its offers after 6 s and moves along the scenario's roads once a second at
     ROAD_KMH × speedup, boards, and drops off at the shelter (api/sim/drivers.py). Vehicles a phone has
-    open are left to the phone. Turn it off with POST /sim/control {standIns: {drivers: false}}."""
+    open are left to the phone. Real phones are never called during a drive test (`realCalls` off).
+    Stop it with POST /sim/drive-test/stop."""
     db = get_db()
     async with world_lock:
         from api.sim import world as sim_world
@@ -160,7 +163,15 @@ async def drive_test(
     _publish_fire_run(db)
     await db.simControl.update_one(
         {"_id": "sim"},
-        {"$set": {"standIns.drivers": True, "standIns.approval": True, "speedup": speedup, "updatedAt": utcnow()}},
+        {
+            "$set": {
+                "standIns.drivers": True,
+                "standIns.approval": True,
+                "standIns.realCalls": False,
+                "speedup": speedup,
+                "updatedAt": utcnow(),
+            }
+        },
         upsert=True,
     )
     plan = await solve_once(db)
@@ -171,5 +182,35 @@ async def drive_test(
         "speedup": speedup,
         "kmhOnScreen": ROAD_KMH * speedup,
         "metersPerSecond": round(ROAD_KMH * 1000 / 3600 * speedup, 1),
+        "realCalls": False,
         "simulated": True,
     }
+
+
+@router.post("/drive-test/stop")
+async def drive_test_stop() -> dict:
+    """Stop the drive test: stand-in drivers and auto-approve off, normal speed, and nothing queued for a
+    real phone gets called. Real calls stay off until you turn them back on (POST /sim/control
+    {standIns: {realCalls: true}}, or the console toggle); a Try-it call turns them back on by itself."""
+    db = get_db()
+    now = utcnow()
+    await db.simControl.update_one(
+        {"_id": "sim"},
+        {
+            "$set": {
+                "standIns.drivers": False,
+                "standIns.approval": False,
+                "standIns.realCalls": False,
+                "speedup": 1.0,
+                "updatedAt": now,
+            }
+        },
+        upsert=True,
+    )
+    real = [h["_id"] async for h in db.households.find({"simulated": False}, {"_id": 1})]
+    req_ids = [r["_id"] async for r in db.requests.find({"householdId": {"$in": real}}, {"_id": 1})]
+    dropped = await db.callbacks.update_many(
+        {"requestId": {"$in": req_ids}, "state": "queued"},
+        {"$set": {"state": "skipped", "reason": "drive test stopped", "updatedAt": now}},
+    )
+    return {**await _control_view(db), "callbacksDropped": dropped.modified_count, "stopped": True}

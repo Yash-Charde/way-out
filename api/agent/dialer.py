@@ -253,18 +253,24 @@ def _order(hh: dict[str, Any]) -> tuple:
     return (hh.get("reach") == "not_called", deadline is None, deadline.timestamp() if deadline else 0.0)
 
 
+async def real_calls_on(db: AsyncIOMotorDatabase) -> bool:
+    """simControl `standIns.realCalls` (default on). Off: no zone dialing and no callbacks to real phones."""
+    doc = await db.simControl.find_one({"_id": "sim"}) or {}
+    return bool((doc.get("standIns") or {}).get("realCalls", True))
+
+
 async def due(db: AsyncIOMotorDatabase, now: datetime) -> list[dict[str, Any]]:
     """Households to call now, in order."""
     zones = [z["_id"] async for z in db.zones.find({"status": {"$in": list(ACTIVE_ZONE_STATUSES)}}, {"_id": 1})]
     if not zones:
         return []
     q: dict[str, Any] = {"zoneId": {"$in": zones}, "reach": {"$in": ["not_called", "retry_2", "retry_5"]}}
-    standins, real = await _voice_standins_on(db), _cartesia_ready()
+    standins, real = await _voice_standins_on(db), _cartesia_ready() and await real_calls_on(db)
     if not (standins or real):
         return []
     if not standins:
         q["simulated"] = {"$ne": True}
-    elif not real:  # no phone line configured: don't spin on real homes, they wait for Cartesia
+    elif not real:  # no phone line, or real calls are off: real homes wait
         q["simulated"] = True
     fields = {"reach": 1, "deadlineAt": 1, "nextAttemptAt": 1, "simulated": 1}
     rows = [h async for h in db.households.find(q, fields)]

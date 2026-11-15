@@ -121,7 +121,7 @@ async def test_sim_routes(client, db):
     res = await client.post("/sim/seed", params={"homes": 20, "census": "instant"})
     assert res.status_code == 200 and res.json()["simulated"] is True
     res = await client.post("/sim/control", json={"standIns": {"approval": True}})
-    assert res.json()["standIns"] == {"voice": False, "drivers": False, "approval": True, "fireZones": True}
+    assert res.json()["standIns"] == {"voice": False, "drivers": False, "approval": True, "fireZones": True, "realCalls": True}
     assert (await client.get("/sim/control")).json()["standIns"]["approval"] is True
 
 

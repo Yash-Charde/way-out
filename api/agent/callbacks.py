@@ -143,6 +143,8 @@ async def handle(db: AsyncIOMotorDatabase, cb: dict[str, Any], pacer: dialer.Pac
         return await _defer(db, cb, DEFER_S, now)  # the in-call agent announces it at the next sentence
 
     sim = bool(hh.get("simulated"))
+    if not sim and not await dialer.real_calls_on(db):
+        return await _skip(db, cb, "real phone calls are off", now)
     if not sim and not dialer._cartesia_ready():
         return await _defer(db, cb, 30, now)
     if sim and sum(1 for t in _tasks.values() if not t.done()) >= s.standin_concurrency:
