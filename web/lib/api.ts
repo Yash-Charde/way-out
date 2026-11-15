@@ -27,6 +27,27 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 
 type Doc = { id: string } & Record<string, unknown>;
 
+/** GET /hazards/fire. Scenario input, not a forecast. */
+export type FireView = {
+  runId: string;
+  label: string;
+  simulated: true;
+  source: "tiger" | "model";
+  ignition: [number, number];
+  ignitedAt: string;
+  endsAt: string;
+  at: string;
+  elapsedMin: number;
+  windFromDeg: number;
+  burned: [number, number][];
+  acres: number;
+  active: { lon: number; lat: number; frp: number; ageMin: number }[];
+  hotspots: number;
+  activity: { at: string; hotspots: number; frp: number }[];
+  homesReached: number;
+  homesTotal: number;
+};
+
 export const api = {
   health: () => call<{ ok: boolean; env: string; version: string; gitSha: string }>("GET", "/health"),
   households: (zoneId?: string) =>
@@ -34,6 +55,9 @@ export const api = {
   openRequests: () => call<Doc[]>("GET", "/requests/open"),
   vehicles: () => call<Doc[]>("GET", "/vehicles"),
   hazards: () => call<{ hazards: Doc[]; closures: Doc[]; shelters?: Doc[]; zones?: Doc[] }>("GET", "/hazards"),
+  /** The simulated fire as of `at` (ISO; default now). Detections from Tiger Data when configured. */
+  fire: (at?: string) =>
+    call<{ fire: FireView | null; reason?: string }>("GET", `/hazards/fire${at ? `?at=${encodeURIComponent(at)}` : ""}`),
   latestPlan: () => call<{ plan: Doc | null; assignments: Doc[] }>("GET", "/plans/latest"),
 
   approve: (id: string) => call<Doc>("POST", `/assignments/${id}/approve`),

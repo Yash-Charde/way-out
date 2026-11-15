@@ -1,5 +1,6 @@
 """POST /sim/seed, POST /sim/control, POST /sim/census. Everything from here is labeled SIM."""
 
+import asyncio
 from typing import Literal
 
 from fastapi import APIRouter, Query
@@ -8,9 +9,24 @@ from pydantic import BaseModel, Field
 from api.core.db import get_db
 from api.core.util import utcnow
 from api.dispatch.loop import request_replan, sim_control, world_lock
+from api.hazard import fire
 from api.sim import seed as sim_seed
 
 router = APIRouter(prefix="/sim", tags=["sim"])
+_background: set[asyncio.Task] = set()
+
+
+def _publish_fire_run(db) -> None:
+    """Write the new fire run's detections to Tiger Data without making the seed wait."""
+
+    async def go() -> None:
+        doc = await db.hazards.find_one({"_id": fire.RUN_ID})
+        if doc:
+            await fire.publish(db, fire.run_from_doc(doc))
+
+    task = asyncio.create_task(go())
+    _background.add(task)
+    task.add_done_callback(_background.discard)
 
 
 @router.post("/seed")
@@ -29,6 +45,7 @@ async def seed(
             get_db(), scenario=scenario, homes=homes, rng_seed=seed, census=census, first_arrival_min=firstArrivalMin
         )
     request_replan()
+    _publish_fire_run(get_db())
     return result
 
 

@@ -10,6 +10,8 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapLegend } from "@/components/MapLegend";
 import { SimBadge } from "@/components/Shell";
+import { FireReplay } from "./FireReplay";
+import type { FireView } from "@/lib/api";
 import { AnimatedNumber, AppHeader, CloseButton } from "@/components/ui";
 import { api, type StandIns } from "@/lib/api";
 import { useLive } from "@/lib/live";
@@ -162,6 +164,9 @@ export function Console() {
   const vehicles = useLive((s) => s.vehicles);
   const liveZones = useLive((s) => s.zones);
   const liveHazards = useLive((s) => s.hazards);
+  // A new seed writes a new fire run (hazards/fire_run); its store flips to "tiger" once Tiger has it.
+  const fireRun = liveHazards["fire_run"] as Doc | undefined;
+  const fireRunKey = `${String(fireRun?.runId ?? "")}:${String(fireRun?.store ?? "")}`;
   const plan = useLive((s) => s.plan);
   const { theme } = useTheme();
   const lastSafety = useLive((s) => s.safety[s.safety.length - 1]);
@@ -176,6 +181,7 @@ export function Console() {
   const [statics, setStatics] = useState<Statics>({ hazards: [], closures: [], shelters: [], zones: [] });
   const [drawing, setDrawing] = useState<LonLat[] | null>(null);
   const [panels, setPanels] = useState(true);
+  const [fireView, setFireView] = useState<FireView | null>(null);
 
   const loadStatics = useCallback(async () => {
     try {
@@ -332,6 +338,7 @@ export function Console() {
         onSelectHousehold={setSelectedHome}
         onMapClick={onMapClick}
         theme={theme}
+        fire={fireView}
       />
 
       <div className="absolute inset-x-3 top-3 z-20">
@@ -541,7 +548,7 @@ export function Console() {
 
       {home && (
         <section
-          className={`${PANEL} absolute bottom-[7.25rem] left-1/2 z-20 w-[27rem] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 animate-rise p-4`}
+          className={`${PANEL} absolute bottom-[13rem] left-1/2 z-20 w-[27rem] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 animate-rise p-4`}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -656,6 +663,15 @@ export function Console() {
         <button className="btn min-h-8" onClick={() => setPanels((v) => !v)}>
           {panels ? "Hide lists" : "Show lists"}
         </button>
+      </div>
+
+      {/* Fire replay: above the legend, between the side panels. */}
+      <div
+        className={`pointer-events-none absolute bottom-[7rem] z-10 flex justify-center ${
+          panels ? "right-[25.5rem] left-[23.5rem]" : "right-3 left-3"
+        }`}
+      >
+        <FireReplay runKey={fireRunKey} onFire={setFireView} className="pointer-events-auto w-full max-w-[40rem]" />
       </div>
 
       {!panels && (

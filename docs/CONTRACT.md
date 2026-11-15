@@ -105,6 +105,8 @@ received ──approve──► approved ──driver accepts──► driver_ac
 ### `hazards`
 `{ _id, kind: fire|flood|road_blocked, source: firms|spread|photo|manual|sim, geometry, detectedAt, confidence, photoUrl? }`
 
+One more doc, `_id: "fire_run"` (`kind: fire_run`, no geometry): the current fire replay, written by every seed. `{ runId, scenario, ignition (Point), windFromDeg, ignitedAt, replayHours, store: pending|tiger|model, detections, simulated: true }`. Its front reaches each simulated home exactly at that home's `fireArrivalAt`. *Added with the fire map.*
+
 ### `zones`
 `{ _id, name, county, status: ready|set|go|clear, polygon, source: tinyfish|manual, sourceUrl, updatedAt }`. `drill: {published, publishedAt}` (what the drill page shows; changes nothing by itself) and `watch: {armedUntil, lastCheckAt, lastSeen, lastError, lastChangeAt, checks}` (TinyFish watcher). Collection `tinyfishUsage` `{_id: "YYYY-MM-DD", fetches}` counts free Fetch calls against the daily cap.
 
@@ -112,7 +114,8 @@ received ──approve──► approved ──driver accepts──► driver_ac
 `shelters` (location, capacity), `roadClosures` (LineString, source, at), `auditLog` (kind, message, refs, at), `plans` (version, solver, solveMs, objective, changedOffers; also proposals, unservable, unreachableCommitted, requested), `simControl` (one doc `_id: "sim"`, `standIns: {voice, drivers, approval}`).
 
 ### Tiger Data (Postgres / Timescale hypertables)
-`vehicle_positions(time, vehicle_id, lon, lat, speed)` · `fire_detections(time, lon, lat, frp, source)` · `call_turns(time, call_id, latency_ms, guard_blocked)` · `kpis(time, name, value)`
+**Built:** `fire_detections(time, env, run_id, lon, lat, frp, confidence, simulated)`: hypertable, 1-hour chunks, index `(run_id, time DESC)`. Created by the API on first use; a seed replaces its env's rows with the new run (~3,100 simulated hotspots over 8 h). Read by `GET /hazards/fire` (rows up to `at` + `time_bucket('15 minutes')` activity).
+**Planned:** `vehicle_positions(time, vehicle_id, lon, lat, speed)` · `call_turns(time, call_id, latency_ms, guard_blocked)` · `kpis(time, name, value)`
 
 ---
 
@@ -147,6 +150,7 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | POST | `/vehicles/{id}/presence` | driver app open (every ~20 s) → `{ok}`; stand-in drivers leave the vehicle alone for 2 min |
 | POST | `/roads/closures` | `{geometry, source}` → triggers re-plan |
 | GET | `/hazards` | → `{hazards, closures, shelters, zones}`: fire front, detections, road closures, shelters, zone outlines (what the console map draws) |
+| GET | `/hazards/fire` | `?at=ISO` (default now) → `{fire: {runId, label, simulated, source: tiger\|model, ignition, ignitedAt, endsAt, at, elapsedMin, windFromDeg, burned: ring, acres, active: [{lon, lat, frp, ageMin}], hotspots, activity: [{at, hotspots, frp}], homesReached, homesTotal}}`, or `{fire: null, reason}` before any seed. Scenario input, not a forecast. *Added with the fire map.* |
 | POST | `/hazards/photo` | multipart image + lon/lat → Gemini vision → hazard (not built: 501) |
 | GET | `/zones` | → `[zone]` |
 | GET | `/zones/{id}/drill` | → drill page view: published status, zone status, watcher, free-tier usage |

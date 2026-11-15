@@ -18,6 +18,7 @@ import MapGL, { useControl, type MapLayerMouseEvent } from "react-map-gl/maplibr
 import { addRelief, wayOutStyle } from "./mapStyle";
 import { BasemapSwitcher } from "@/components/BasemapSwitcher";
 import { RASTER, useBasemap, type Basemap } from "@/lib/basemaps";
+import type { FireView } from "@/lib/api";
 
 type Doc = { id: string } & Record<string, unknown>;
 type LonLat = [number, number];
@@ -82,8 +83,9 @@ export const CANYON_BOUNDS: [[number, number], [number, number]] = [
   [-111.835, 34.845],
   [-111.715, 35.02],
 ];
-// The console's default: the canyon in the gap between its two side panels.
-const CONSOLE_PADDING: Padding = { top: 100, bottom: 70, left: 390, right: 420 };
+// The console's default: the canyon in the gap between its two side panels, below the KPI strip and
+// above the fire replay bar + legend.
+const CONSOLE_PADDING: Padding = { top: 150, bottom: 250, left: 390, right: 420 };
 
 function lonlat(doc: unknown): LonLat | null {
   const c = (doc as { location?: { coordinates?: number[] } } | undefined)?.location?.coordinates;
@@ -113,6 +115,7 @@ export type MapViewProps = {
   theme?: Theme;
   padding?: Padding; // keeps the canyon clear of the page's panels
   layersClassName?: string; // where the Map / Terrain / Topo / Satellite switch sits
+  fire?: FireView | null; // simulated fire replay (GET /hazards/fire)
 };
 
 export default function MapView(p: MapViewProps) {
@@ -197,6 +200,34 @@ export default function MapView(p: MapViewProps) {
         getFillColor: [theme, p.zones.map((z) => z.status)],
         getLineColor: [theme, p.zones.map((z) => z.status)],
       },
+    }),
+    // Simulated fire replay: burned area so far + hotspots from the last 30 min (newest brightest).
+    new PolygonLayer<{ ring: LonLat[] }>({
+      id: "fire-burned",
+      data: p.fire && p.fire.burned.length > 3 ? [{ ring: p.fire.burned }] : [],
+      getPolygon: (d) => d.ring,
+      getFillColor: [255, 77, 61, theme === "dark" ? 46 : 38],
+      getLineColor: [255, 77, 61, 200],
+      getLineWidth: 1.5,
+      lineWidthUnits: "pixels",
+      updateTriggers: { getFillColor: theme },
+    }),
+    new ScatterplotLayer<FireView["active"][number]>({
+      id: "fire-active-glow",
+      data: p.fire?.active ?? [],
+      getPosition: (d) => [d.lon, d.lat],
+      getRadius: (d) => 4 + Math.min(9, d.frp / 8),
+      radiusUnits: "pixels",
+      getFillColor: (d) => [255, 120, 61, Math.round(70 * (1 - d.ageMin / 35))],
+    }),
+    new ScatterplotLayer<FireView["active"][number]>({
+      id: "fire-active",
+      data: p.fire?.active ?? [],
+      getPosition: (d) => [d.lon, d.lat],
+      getRadius: (d) => 1.5 + Math.min(4, d.frp / 20),
+      radiusUnits: "pixels",
+      getFillColor: (d) => [255, 77, 61, Math.round(255 - 150 * (d.ageMin / 30))],
+      pickable: true,
     }),
     new PolygonLayer<Doc>({
       id: "fire",
@@ -452,6 +483,10 @@ export default function MapView(p: MapViewProps) {
           const o = info.object as Doc | undefined;
           if (!o) return null;
           if (info.layer?.id === "vehicles") return `${o.driverName} · ${o.kind} · ${o.status}`;
+          if (info.layer?.id === "fire-active") {
+            const d = info.object as unknown as FireView["active"][number];
+            return `Hotspot (SIM) · ${d.frp} MW · ${Math.round(d.ageMin)} min ago`;
+          }
           if (info.layer?.id === "homes") {
             const r = requestByHousehold[o.id];
             return `${o.address}\n${String(o.role).replace("_", " ")}${r ? ` · ${r.status}` : ""}`;

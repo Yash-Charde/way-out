@@ -10,7 +10,14 @@ os.environ.setdefault("ENV", "test")
 os.environ["RUN_WORKERS"] = "false"
 os.environ["INTERNAL_TOKEN"] = "test-token"
 # Tests never call real services, even if a developer's .env has keys (env vars override .env).
-for _k in ("GEMINI_API_KEY", "ANTHROPIC_API_KEY", "CARTESIA_API_KEY", "TINYFISH_API_KEY", "FIRMS_MAP_KEY"):
+for _k in (
+    "GEMINI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "CARTESIA_API_KEY",
+    "TINYFISH_API_KEY",
+    "FIRMS_MAP_KEY",
+    "TIGER_DATABASE_URL",  # test_fire.py opts in with TIGER_TEST_URL
+):
     os.environ[_k] = ""
 
 import pytest  # noqa: E402
