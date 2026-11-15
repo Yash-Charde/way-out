@@ -15,7 +15,7 @@ can see where you are on `develop` after each merge.
 | A-06 | 6:30–10:00 | Deck v1 | `feat/aarya` | ✅ done (v1) | deck link in `docs/story/README.md`; slide 7 numbers wait for A-09 |
 | A-07 | 10:00–12:00 | Demo script + Q&A | `feat/aarya` | ✅ done | `docs/story/demo.md` |
 | A-08 | 12:00–1:00 AM | Devpost draft | `feat/aarya` | ✅ drafted | #43 · `docs/story/devpost.md` (+ Future of Work, prize opt-ins); save on Devpost, don't submit |
-| A-09 | 3:00–5:00 | Impact numbers | `feat/aarya` | 🟡 sim numbers in | 91% vs 48% (X-01) in `devpost.md`, `demo.md`, `expo.md`; results + baseline notes in `impact.md`; honesty + latency blanks wait on Deep's D1-09; deck slide 7 still to update |
+| A-09 | 3:00–5:00 | Impact numbers | `feat/aarya` | 🟡 sim numbers + chart in | 91% vs 48% (X-01) in `devpost.md`, `demo.md`, `expo.md`, and the deck's slide 7 chart; honesty + latency blanks wait on Deep's D1-09 |
 | A-10 | 5:00–8:30 | Rehearse ×3 | `feat/aarya` | 🟡 prep done | shot list + rehearsal log in `docs/story/expo.md` |
 | A-11 | by 10:00 AM | Final deck, final Devpost with Prem: links (live app, repo, video),… | `feat/aarya` | ⬜ todo | |
 | A-12 | 12:00–2:00 PM | Expo: you tell the story (first 20 seconds) and handle Q&A | `feat/aarya` | 🟡 prep done | expo cheat sheet in `docs/story/expo.md` |
