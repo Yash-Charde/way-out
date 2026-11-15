@@ -34,12 +34,8 @@ const shortName = (z: { id: string; name?: string }) => {
 };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ zone?: string }> }) {
-  const { zone: asked } = await searchParams;
-  const all = await zones();
-  // Default: the zone the fire reaches first in the loaded scenario (Carefree in Phoenix, zone 14 in the canyon).
-  const zone =
-    asked ?? (all.find((z) => z.id === "zone_vf_carefree") ?? all.find((z) => z.id === "zone_oak_creek_14") ?? all[0])?.id ?? "zone_oak_creek_14";
-  const view = await load(zone);
+  const { zone = "zone_oak_creek_14" } = await searchParams;
+  const [view, all] = await Promise.all([load(zone), zones()]);
   const published = (view?.published ?? "ready").toUpperCase();
 
   return (

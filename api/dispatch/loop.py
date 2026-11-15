@@ -28,9 +28,7 @@ from api import requests as rq
 from api.core.util import aware, new_id, utcnow
 from api.dispatch import batch, greedy
 from api.hazard.fire import RUN_ID, run_from_doc
-from api.sim import world
 from api.sim.geo import Road
-from api.sim.grid import Grid
 from api.sim.seed import fire_minutes
 
 log = logging.getLogger(__name__)
@@ -38,7 +36,6 @@ log = logging.getLogger(__name__)
 PLANNABLE = ("received", "reassigning")
 BUSY_EVERY_S, IDLE_EVERY_S = 5.0, 30.0
 ETA_QUIET_DELTA_MIN = 1.0
-MAX_RIDERS_PER_SOLVE = 250  # most urgent riders planned per solve (Phoenix metro scale)
 FIRE_BUFFER_MIN = 10.0  # a vehicle the front reaches within this many minutes is in the fire zone
 
 _lock = asyncio.Lock()
@@ -62,8 +59,8 @@ def _minutes_until(dt: datetime | None, now: datetime) -> float | None:
     return None if dt is None else (aware(dt) - now).total_seconds() / 60
 
 
-async def road_with_closures(db: AsyncIOMotorDatabase) -> Road | Grid:
-    road = world.network()  # SR 89A (canyon) or the Phoenix street grid (valley-fire)
+async def road_with_closures(db: AsyncIOMotorDatabase) -> Road:
+    road = Road()
     async for c in db.roadClosures.find({}):
         coords = (c.get("geometry") or {}).get("coordinates") or []
         if len(coords) >= 2:
@@ -174,19 +171,12 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime, *, replan
             shelters.append(greedy.Shelter(s["_id"], loc, int(s.get("capacity", 0)) - int(s.get("occupied", 0))))
 
     riders = [x for r in reqs if (x := rider(r)) is not None]
-    # A metro call-out can open ~1,000 requests at once. Plan the most urgent ones each round (reassigned
-    # first, then by deadline); the rest get their turn as these are taken. Keeps a solve well under a second.
-    riders.sort(key=lambda r: (not r.reassigning, r.deadline_min if r.deadline_min is not None else 1e9, -r.priority))
-    riders = riders[:MAX_RIDERS_PER_SOLVE]
     used = "greedy" if solver == "greedy" else "batched"
     unsafe = await fire_unsafe(db, {v.id: v.loc for v in vehicles}, now)
-    # CPU-bound: off the event loop, so /live and the API stay responsive during a big solve.
     if used == "greedy":
-        result = await asyncio.to_thread(
-            greedy.plan, riders, [v for v in vehicles if v.id not in unsafe], shelters, road.travel_min
-        )
+        result = greedy.plan(riders, [v for v in vehicles if v.id not in unsafe], shelters, road.travel_min)
     else:
-        result = await asyncio.to_thread(batch.plan, riders, vehicles, shelters, road.travel_min, unsafe=unsafe)
+        result = batch.plan(riders, vehicles, shelters, road.travel_min, unsafe=unsafe)
     solve_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     # ── committed pickups the plan can't keep ─────────────────────────

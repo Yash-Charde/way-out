@@ -183,12 +183,6 @@ export function Console() {
   const [drawing, setDrawing] = useState<LonLat[] | null>(null);
   const [panels, setPanels] = useState(true);
   const [fireView, setFireView] = useState<FireView | null>(null);
-  // Which world is loaded (Phoenix metro or Oak Creek Canyon): frames the map and names the KPI strip.
-  const [scn, setScn] = useState<{ name: string; title: string; bounds: [[number, number], [number, number]] } | null>(null);
-  const loadScenario = useCallback(() => {
-    api.scenario().then(setScn).catch(() => undefined);
-  }, []);
-  useEffect(() => loadScenario(), [loadScenario]);
   // `live` (following now vs scrubbing) doesn't matter here: the map draws whatever time the replay shows.
   const onFire = useCallback((f: FireView | null) => setFireView(f), []);
 
@@ -382,7 +376,6 @@ export function Console() {
         onMapClick={onMapClick}
         theme={theme}
         fire={fireView}
-        bounds={scn?.bounds}
       />
 
       <div className="absolute inset-x-3 top-3 z-20">
@@ -393,9 +386,7 @@ export function Console() {
       <div
         className={`${PANEL} absolute top-[4.6rem] left-1/2 hidden -translate-x-1/2 items-center divide-x divide-line px-1.5 py-1.5 min-[1200px]:flex`}
       >
-        <span className="eyebrow hidden px-3 xl:inline-flex">
-          {scn?.name === "valley-fire" ? "Phoenix metro" : "Oak Creek Canyon"}
-        </span>
+        <span className="eyebrow hidden px-3 xl:inline-flex">Oak Creek Canyon</span>
         <Stat label="homes" value={counts.homes} />
         <Stat label="reached" value={counts.reached} />
         <Stat label="need ride" value={counts.needRide} tone="text-fire" />
@@ -754,10 +745,9 @@ export function Console() {
               async () => {
                 const r = await api.seed();
                 await resync(); // the old world's homes, requests and offers leave the screen
-                loadScenario();
                 return r;
               },
-              (r) => `Seeded ${Number((r as { households?: number }).households ?? 0).toLocaleString()} homes (SIM)`,
+              () => "Seeded 200 homes (SIM)",
             )
           }
         >
@@ -770,15 +760,11 @@ export function Console() {
             run(
               "Census",
               async () => {
-                // Phoenix: thousands of homes, so answer them in waves (fire-first) and let /live light up the map.
-                const r = await api.census(scn?.name === "valley-fire" ? 250 : 0);
-                if (!(r as { started?: boolean }).started) await resync();
+                const r = await api.census();
+                await resync();
                 return r;
               },
-              (r) =>
-                (r as { started?: boolean }).started
-                  ? "Calling every home, closest to the fire first (SIM)"
-                  : `${(r as { requests: number }).requests} ride requests (SIM)`,
+              (r) => `${(r as { requests: number }).requests} ride requests (SIM)`,
             )
           }
         >

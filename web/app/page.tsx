@@ -56,13 +56,6 @@ export default function Kiosk() {
   const households = useLive((s) => s.households);
   const liveTurns = useLive((s) => s.turns);
   const liveZones = useLive((s) => s.zones);
-  const [place, setPlace] = useState("Phoenix metro");
-  useEffect(() => {
-    api
-      .scenario()
-      .then((s) => setPlace(s.name === "valley-fire" ? "Phoenix metro" : "Oak Creek Canyon"))
-      .catch(() => undefined);
-  }, []);
 
   // Map context: zone outlines, shelters, closures (same source as the console). Live zone status wins.
   type Doc = { id: string } & Record<string, unknown>;
@@ -165,7 +158,7 @@ export default function Kiosk() {
           />
           <div className="pointer-events-none absolute top-4 left-4 flex items-center gap-2">
             <span className="glass flex items-center gap-2 rounded-full! px-3 py-1.5 text-xs text-muted">
-              <SimBadge /> {place} · other homes are simulated
+              <SimBadge /> Oak Creek Canyon · other homes are simulated
             </span>
           </div>
         </section>
@@ -215,7 +208,7 @@ export default function Kiosk() {
                   <span className="text-muted">Hear what they hear.</span>
                 </h1>
                 <p className="text-[15px] leading-relaxed text-muted">
-                  Way Out calls every home in the warning zone at once. Pick one and take the call yourself, or join as a
+                  Way Out calls every home in the canyon at once. Pick one and take the call yourself, or join as a
                   neighbor who can drive.
                 </p>
               </div>

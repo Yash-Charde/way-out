@@ -1,7 +1,6 @@
 /** Thin REST client for the Way Out API (CONTRACT §2). */
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-export const DEFAULT_SCENARIO = (process.env.NEXT_PUBLIC_SCENARIO ?? "valley-fire") as "valley-fire" | "pocket-fire";
 
 export class ApiError extends Error {
   constructor(
@@ -93,21 +92,12 @@ export const api = {
   closeRoad: (coordinates: [number, number][], source: "manual" | "hazard" | "sim" = "manual") =>
     call<Doc>("POST", "/roads/closures", { geometry: { type: "LineString", coordinates }, source }),
   // simulation + dispatch. Everything from /sim is simulated.
-  // Phoenix metro (valley-fire, ~8,000 homes) unless a scenario is given; "pocket-fire" = Oak Creek Canyon.
-  seed: (
-    opts: { scenario?: "valley-fire" | "pocket-fire"; homes?: number; census?: "none" | "instant"; seed?: number } = {},
-  ) =>
+  seed: (opts: { homes?: number; census?: "none" | "instant"; seed?: number } = {}) =>
     call<Record<string, unknown>>(
       "POST",
-      `/sim/seed?${new URLSearchParams(
-        Object.entries({ scenario: DEFAULT_SCENARIO, ...opts }).map(([k, v]) => [k, String(v)]),
-      ).toString()}`,
+      `/sim/seed?${new URLSearchParams(Object.entries(opts).map(([k, v]) => [k, String(v)])).toString()}`,
     ),
-  // perSecond > 0: homes are answered in waves, fire-first, so the map lights up like a real call-out.
-  census: (perSecond = 0) =>
-    call<{ requests?: number; started?: boolean }>("POST", `/sim/census${perSecond ? `?perSecond=${perSecond}` : ""}`),
-  scenario: () =>
-    call<{ name: string; title: string; bounds: [[number, number], [number, number]] }>("GET", "/sim/scenario"),
+  census: () => call<{ requests: number }>("POST", "/sim/census"),
   driveTestStop: () =>
     call<{ standIns: StandIns; speedup: number; callbacksDropped: number; stopped: boolean }>("POST", "/sim/drive-test/stop"),
   // fresh world + auto-approve + stand-in drivers: watch the fleet drive (speedup × real time)

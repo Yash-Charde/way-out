@@ -159,16 +159,15 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | POST | `/zones/{id}/drill/watch` | `{on}` → arm/disarm the TinyFish watcher |
 | POST | `/zones/county-check` | one read-only TinyFish fetch of `COUNTY_PAGE_URL`, logged (Bearer) |
 | POST | `/zones/{id}/status` | `{status, sourceUrl}` (TinyFish webhook) → starts dialing at `set` |
-| POST | `/sim/seed` | `?scenario=pocket-fire\|valley-fire&homes=&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world. `pocket-fire` (Oak Creek Canyon): 200 homes, 8 vehicles, 2 shelters, 2 zones. `valley-fire` (Phoenix metro, the web's default): ~8,000 homes, 40 vehicles, 4 shelters, 13 zones. Real households stay |
-| POST | `/sim/drive-test` | `?speedup=10&homes=200` → fresh world (instant census), auto-approve + stand-in drivers on, one solve. Vans then move once a second along the scenario's roads (SR 89A or the Phoenix grid) at 35 km/h × speedup. → `{world, plan, speedup, kmhOnScreen, metersPerSecond}` |
+| POST | `/sim/seed` | `?scenario=pocket-fire&homes=200&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world: 200 homes, 8 vehicles, 2 shelters, 2 zones. Real households stay |
+| POST | `/sim/drive-test` | `?speedup=10&homes=200` → fresh world (instant census), auto-approve + stand-in drivers on, one solve. Vans then move once a second along SR 89A at 35 km/h × speedup. → `{world, plan, speedup, kmhOnScreen, metersPerSecond}` |
 | POST | `/sim/drive-test/stop` | → stand-in drivers + auto-approve off, speed 1×, `realCalls` stays off, queued callbacks to real phones dropped. → control view + `callbacksDropped` |
 | GET | `/persona` | **Internal token.** `?address=&phone=&includeSimulated=` → `{people: [{householdId, address, phone, simulated, zoneId, role, reach, language, claimedAt, location}], volunteers: [{vehicleId, driverName, phone, homeId, location}]}`. Not shown in the web app |
 | GET | `/persona/{householdId}` | **Internal token.** → the person and phone on that address |
 | PATCH | `/persona/{householdId}` | **Internal token.** `{address?, phone?}` (US E.164). A number moved here is released from its other houses |
 | DELETE | `/persona/{householdId}` | **Internal token.** Take the person off the house: back to a simulated stand-in, open request closed, offers withdrawn, queued callbacks dropped |
 | DELETE | `/persona/volunteers/{vehicleId}` | **Internal token.** Remove a Try-it volunteer car (accepted pickups are revoked and re-planned) |
-| POST | `/sim/census` | `?perSecond=0&zones=a,b` answer unreached simulated homes from their personas (no calls) → `{requests}`. `perSecond > 0`: background waves, fire-first → `{started: true}` |
-| GET | `/sim/scenario` | → `{name, title, bounds: [[w,s],[e,n]]}` the loaded world and the box the console frames *(added: Phoenix metro)* |
+| POST | `/sim/census` | answer every unreached simulated home from its persona (no calls) → `{requests}` |
 | POST / GET | `/sim/control` | `{standIns?: {voice, drivers, approval, fireZones, realCalls}: bool, speedup?: 1–600}` (partial updates) → `{standIns, speedup}`. `drivers`: simulated vehicles accept after 6 s and drive their runs; `speedup`: they drive and board N× faster |
 | GET | `/system/metrics` | → `{live: {calls, latencyMs: {realPhone, standIns}, interpreter, fallbacks, acks}, evals: data/eval-results.json \| null, dispatch: data/sim-results.json \| null, census: {reach, openRequests, duplicatesMerged}, audit: [..40]}` |
 | GET | `/health` | → `{ok, env, version, gitSha}` |

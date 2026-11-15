@@ -30,7 +30,6 @@ from api.routes import (
     vehicles,
     zones,
 )
-from api.sim import world
 
 log = logging.getLogger("api")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -61,7 +60,6 @@ ROUTERS = [
 async def lifespan(app: FastAPI):
     db = dbmod.get_db()
     await dbmod.ensure_indexes(db)
-    await world.load(db)  # which scenario (canyon or Phoenix metro) the stored world is in
     tasks = workers.start(db) if get_settings().run_workers else []
     yield
     await workers.stop(tasks)

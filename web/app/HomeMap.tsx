@@ -136,12 +136,6 @@ export function HomeMap({
   }, [svgEl]);
 
   const pts = useMemo(() => homes.filter((h) => h.location?.coordinates?.length === 2), [homes]);
-  // The canyon art (SR 89A, creek, contours, place names) only belongs to the Oak Creek scenario. The Phoenix
-  // metro scenario has no hand drawing, so it always shows real street tiles underneath.
-  const canyon = useMemo(
-    () => pts.length > 0 && pts.reduce((s, h) => s + Number(h.location!.coordinates![1]), 0) / pts.length > 34.4,
-    [pts],
-  );
 
   // Frame: the homes' extent in meters, with a margin.
   const frame = useMemo(() => {
@@ -233,8 +227,7 @@ export function HomeMap({
   }, [k]);
 
   // Raster tiles for the chosen base map, covering the visible area.
-  const base = canyon || (basemap !== "map" && basemap !== "terrain") ? basemap : "topo";
-  const raster = base === "terrain" ? RELIEF : RASTER[base];
+  const raster = basemap === "terrain" ? RELIEF : RASTER[basemap];
   const tiles = useMemo(() => {
     if (!raster || !frame || !k || !size.w) return [];
     const inv = (sx: number, sy: number) =>
@@ -268,7 +261,7 @@ export function HomeMap({
     });
     return out;
   }, [raster, frame, k, size.w, size.h, view.px, view.py, P]);
-  const drawn = canyon && (basemap === "map" || basemap === "terrain"); // our own canyon drawing (bands, contours, creek)
+  const drawn = basemap === "map" || basemap === "terrain"; // our own canyon drawing (bands, contours, creek)
 
   if (!pts.length) {
     return (
@@ -384,26 +377,22 @@ export function HomeMap({
                 strokeWidth={2}
               />
             )}
-            {canyon && (
-              <>
-                <path
-                  d={path(road.map(project))}
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  stroke="var(--color-line-strong)"
-                  strokeWidth={7}
-                />
-                <path
-                  d={path(road.map(project))}
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  stroke="var(--color-panel)"
-                  strokeWidth={4}
-                />
-              </>
-            )}
+            <path
+              d={path(road.map(project))}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              stroke="var(--color-line-strong)"
+              strokeWidth={7}
+            />
+            <path
+              d={path(road.map(project))}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              stroke="var(--color-panel)"
+              strokeWidth={4}
+            />
             {closures.map((c) => {
               const line = (c.geometry as { coordinates?: LonLat[] })?.coordinates;
               return line?.length ? (
@@ -418,7 +407,7 @@ export function HomeMap({
                 />
               ) : null;
             })}
-            {canyon && (() => {
+            {(() => {
               const [x, y] = P([-111.7429, 34.9205]);
               return (
                 <text
@@ -495,7 +484,7 @@ export function HomeMap({
               );
             })}
             {/* places */}
-            {(canyon ? PLACES : []).map((p) => {
+            {PLACES.map((p) => {
               const [x, y] = P(p.at);
               return (
                 <g key={p.name} pointerEvents="none">
