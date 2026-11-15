@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from api import live, workers
 from api.core import db as dbmod
@@ -28,6 +29,7 @@ from api.routes import (
     zones,
 )
 
+log = logging.getLogger("api")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 ROUTERS = [
@@ -61,9 +63,41 @@ async def lifespan(app: FastAPI):
     dbmod.close()
 
 
+class ErrorsAsJson:
+    """Unexpected errors → `500 {"detail": "<Type>: <message>"}` instead of a bare 500.
+
+    Without this, a crash returns from outside the CORS middleware, the browser hides it as "Failed to
+    fetch", and the console can't say what broke.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        started = False
+
+        async def tracking_send(message):
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracking_send)
+        except Exception as e:
+            log.exception("unhandled error on %s %s", scope.get("method"), scope.get("path"))
+            if started:
+                raise
+            detail = f"{type(e).__name__}: {str(e)[:300]}"
+            await JSONResponse({"detail": detail}, status_code=500)(scope, receive, send)
+
+
 def create_app() -> FastAPI:
     s = get_settings()
     app = FastAPI(title="Way Out API", version=VERSION, lifespan=lifespan)
+    app.add_middleware(ErrorsAsJson)  # added first = inside CORS, so 500s still carry CORS headers
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[o.strip() for o in s.cors_origins.split(",")],

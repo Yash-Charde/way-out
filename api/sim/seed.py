@@ -129,6 +129,16 @@ def fire_minutes(home: tuple[float, float], ignition: tuple[float, float], wind_
     return meters(ignition, home) / speed
 
 
+def _free_id(want: str, taken: set[str]) -> str:
+    """`want`, or `want_r1`, `want_r2`, … if a real household still holds it."""
+    out, n = want, 0
+    while out in taken:
+        n += 1
+        out = f"{want}_r{n}"
+    taken.add(out)
+    return out
+
+
 def tract(road: Road) -> tuple[float, float, float]:
     """Chainages of the census tract: (Midgley Bridge, Pine Flat, Slide Rock = zone 14/15 split)."""
     return (
@@ -244,13 +254,16 @@ async def seed(
         raw.append((fire_minutes(loc, ignition, wind_from), _pick_persona(rng, groups), loc))
 
     earliest = min(m for m, _, _ in raw)
+    # A home the kiosk handed to a judge keeps its hh_sim_ id but is real now (simulated: false), so the
+    # reset above leaves it alone. Never reuse an id that's still taken.
+    taken = {h["_id"] async for h in db.households.find({"_id": {"$regex": "^hh_sim_"}}, {"_id": 1})}
     docs: list[dict[str, Any]] = []
     for i, (fire_min, persona, loc) in enumerate(sorted(raw, key=lambda r: road.project(r[2])[0])):
         ch = road.project(loc)[0]
         arrival = now + timedelta(minutes=first_arrival_min + (fire_min - earliest))
         docs.append(
             {
-                "_id": f"hh_sim_{i:03d}",
+                "_id": _free_id(f"hh_sim_{i:03d}", taken),
                 "address": f"{1000 + int(ch / 8)} N State Route 89A, Sedona, AZ 86336",
                 "location": _point(loc),
                 "zoneId": zone_south if ch < split else zone_north,
