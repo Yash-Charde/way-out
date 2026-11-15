@@ -7,7 +7,7 @@ the spread rate is our assumption.
 |---|---|
 | `spread.py` | Elliptical (Huygens) spread, the same model the seed uses for each home's `fireArrivalAt`. `front()`, `detections()` (simulated hotspots on the advancing edge, one pass every 5 min for 8 h, deterministic per run), hull / area helpers |
 | `fire.py` | One run per seed (`hazards/fire_run`). `publish()` writes the run to Tiger Data; `view(at)` = burned area, active edge (last 30 min), 15-min activity, homes reached |
-| `zones.py` | Fire → zone status: a worker (every 10 s) moves simulated zones READY → SET (front 60 min from the zone's first home) → GO (20 min), forward only, through `zonewatch.set_zone_status` (audit + dialer). Switch: simControl `standIns.fireZones` |
+| `zones.py` | Fire → zone status: a worker (every 10 s) moves simulated zones READY → SET (the fire touches the zone's outline) → GO (the front reaches the zone's first home), forward only, through `zonewatch.set_zone_status` (audit + dialer). Switch: simControl `standIns.fireZones` |
 | `tiger.py` | Tiger Data (TimescaleDB): `fire_detections` hypertable, `copy_records_to_table` writes, `time_bucket` reads. Optional |
 
 **Tiger Data:** set `TIGER_DATABASE_URL` (a Tiger Cloud service's connection string). The API creates the

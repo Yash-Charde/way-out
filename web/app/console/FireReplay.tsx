@@ -5,8 +5,8 @@
  * the detections from Tiger Data (a TimescaleDB hypertable) when the API has TIGER_DATABASE_URL.
  *
  * "Live" follows the clock (refreshes every 5 s; the fire is a function of time, nothing to push).
- * The fire also moves zones READY → SET → GO on the server (api/hazard/zones.py); the chips show each
- * zone's fire status and the switch turns that off.
+ * The fire also moves zones on the server (api/hazard/zones.py): SET when it touches the zone, GO when it
+ * reaches the zone's first home. The chips show each zone's fire status; the switch turns that off.
  * A new seed (the `fire_run` hazard arriving on /live) refetches straight away.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -228,17 +228,15 @@ export function FireReplay({
           {fire.zones.map((z) => (
             <span
               key={z.zoneId}
-              title={`Front reaches this zone's first home ${
-                z.leadMin > 0 ? `in ${Math.round(z.leadMin)} min` : `${Math.round(-z.leadMin)} min ago`
-              } (SET at 60 min, GO at 20 min)`}
+              title="SET when the fire touches the zone, GO when it reaches the zone's first home"
               className={`rounded-full border px-2 py-px font-semibold tracking-[0.04em] ${LEVEL_STYLE[z.level]}`}
             >
               {zoneShort(z.zoneId, zoneNames)} {z.level.toUpperCase()}
-              {z.level !== "go" && z.leadMin > 0 && (
-                <span className="font-normal opacity-80">
-                  {" "}
-                  · {z.level === "ready" ? "SET" : "GO"} in {Math.max(0, Math.round(z.leadMin - (z.level === "ready" ? 60 : 20)))}m
-                </span>
+              {z.level === "ready" && (
+                <span className="font-normal opacity-80"> · fire touches in {Math.max(1, Math.round(z.setInMin))}m</span>
+              )}
+              {z.level === "set" && z.goInMin !== null && (
+                <span className="font-normal opacity-80"> · reaches homes in {Math.max(1, Math.round(z.goInMin))}m</span>
               )}
             </span>
           ))}

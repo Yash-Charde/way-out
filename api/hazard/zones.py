@@ -1,9 +1,9 @@
-"""Fire → zone status. As the simulated fire approaches, zones move READY → SET → GO by themselves.
+"""Fire → zone status. Zones start READY and follow the fire on the map:
+  - SET when the burned area first touches the zone's outline
+  - GO  when the front reaches the zone's first home
+Both moments come from the same elliptical spread model the map draws and the homes' deadlines use
+(api/sim/seed.fire_minutes), so the zone changes exactly when the drawn fire gets there.
 
-A zone's lead time is how long until the front reaches its first home (each home's `fireArrivalAt`, the
-same spread model the fire map draws):
-  - lead ≤ SET_LEAD_MIN → SET (get ready; the dialer starts calling)
-  - lead ≤ GO_LEAD_MIN  → GO  (leave now)
 Status only moves forward, so the fire never undoes a SET/GO from TinyFish or a dispatcher, and never
 touches a zone marked CLEAR. Changes go through zonewatch.set_zone_status (audit log, dialer) with
 `source: "fire"`. Simulated zones only; off with simControl `standIns.fireZones = false`.
@@ -11,7 +11,7 @@ touches a zone marked CLEAR. Changes go through zonewatch.set_zone_status (audit
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -19,13 +19,16 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from api.agent import zonewatch
 from api.core.util import utcnow
 from api.dispatch.loop import sim_control
-from api.hazard.fire import RUN_ID
+from api.hazard import spread
+from api.hazard.fire import RUN_ID, run_from_doc
+from api.hazard.spread import FireRun
+from api.sim.geo import meters
+from api.sim.seed import fire_minutes
 
 log = logging.getLogger(__name__)
 
-SET_LEAD_MIN = 60
-GO_LEAD_MIN = 20
 TICK_S = 10
+EDGE_STEP_M = 50  # check the zone outline every 50 m for the first touch
 RANK = {"ready": 0, "set": 1, "go": 2}
 
 
@@ -33,8 +36,25 @@ def _utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
-def level(lead_min: float) -> str:
-    return "go" if lead_min <= GO_LEAD_MIN else "set" if lead_min <= SET_LEAD_MIN else "ready"
+def _densify(ring: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    pts = []
+    for a, b in zip(ring, ring[1:], strict=False):
+        n = max(1, int(meters(a, b) / EDGE_STEP_M))
+        pts += [(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(n)]
+    return pts
+
+
+def touch_minutes(ring: list[tuple[float, float]], run: FireRun) -> float:
+    """Minutes after ignition when the front first touches this outline (0 if it starts inside)."""
+    if spread.inside(run.ignition, ring):
+        return 0.0
+    return min(fire_minutes(p, run.ignition, run.wind_from_deg) for p in _densify(ring))
+
+
+def level_at(at: datetime, touch_at: datetime, go_at: datetime | None) -> str:
+    if go_at is not None and at >= go_at:
+        return "go"
+    return "set" if at >= touch_at else "ready"
 
 
 async def first_arrivals(db: AsyncIOMotorDatabase) -> dict[str, datetime]:
@@ -49,19 +69,42 @@ async def first_arrivals(db: AsyncIOMotorDatabase) -> dict[str, datetime]:
     return out
 
 
-async def levels_at(db: AsyncIOMotorDatabase, at: datetime) -> list[dict[str, Any]]:
-    """What the fire alone says each zone should be at `at` (for the map's replay)."""
-    if not await db.hazards.find_one({"_id": RUN_ID}, {"_id": 1}):
+async def schedule(db: AsyncIOMotorDatabase) -> list[dict[str, Any]]:
+    """Per zone: when the fire touches it (→ SET) and when it reaches its first home (→ GO)."""
+    doc = await db.hazards.find_one({"_id": RUN_ID})
+    if doc is None:
         return []
-    return [
-        {
-            "zoneId": z,
-            "level": level((t - at).total_seconds() / 60),
-            "firstArrivalAt": t,
-            "leadMin": round((t - at).total_seconds() / 60, 1),
-        }
-        for z, t in sorted((await first_arrivals(db)).items())
-    ]
+    run = run_from_doc(doc)
+    firsts = await first_arrivals(db)
+    out = []
+    async for z in db.zones.find({}, {"polygon": 1}):
+        ring = [tuple(p) for p in ((z.get("polygon") or {}).get("coordinates") or [[]])[0]]
+        if len(ring) < 4:
+            continue
+        touch_at = run.ignited_at + timedelta(minutes=touch_minutes(ring, run))
+        go_at = firsts.get(z["_id"])
+        if go_at is not None and go_at < touch_at:
+            go_at = touch_at  # a home outside the outline can't be reached before the outline is
+        out.append({"zoneId": z["_id"], "touchAt": touch_at, "goAt": go_at})
+    return sorted(out, key=lambda z: z["zoneId"])
+
+
+async def levels_at(db: AsyncIOMotorDatabase, at: datetime) -> list[dict[str, Any]]:
+    """What the fire alone says each zone should be at `at` (for the map's replay; changes nothing)."""
+    out = []
+    for z in await schedule(db):
+        go_at = z["goAt"]
+        out.append(
+            {
+                "zoneId": z["zoneId"],
+                "level": level_at(at, z["touchAt"], go_at),
+                "touchAt": z["touchAt"],
+                "goAt": go_at,
+                "setInMin": round((z["touchAt"] - at).total_seconds() / 60, 1),
+                "goInMin": round((go_at - at).total_seconds() / 60, 1) if go_at else None,
+            }
+        )
+    return out
 
 
 async def tick(db: AsyncIOMotorDatabase, now: datetime | None = None) -> list[tuple[str, str]]:
@@ -79,7 +122,7 @@ async def tick(db: AsyncIOMotorDatabase, now: datetime | None = None) -> list[tu
             continue  # forward only; CLEAR is left alone
         await zonewatch.set_zone_status(db, z["zoneId"], z["level"], source="fire", source_url=None)
         changes.append((z["zoneId"], z["level"]))
-        log.info("fire moved %s %s → %s (front %.0f min away)", z["zoneId"], current, z["level"], z["leadMin"])
+        log.info("fire moved %s %s → %s", z["zoneId"], current, z["level"])
     return changes
 
 

@@ -46,8 +46,15 @@ export type FireView = {
   activity: { at: string; hotspots: number; frp: number }[];
   homesReached: number;
   homesTotal: number;
-  /** What the fire alone says each zone should be at `at`: SET 60 min before the front reaches its first home, GO 20. */
-  zones?: { zoneId: string; level: "ready" | "set" | "go"; firstArrivalAt: string; leadMin: number }[];
+  /** What the fire alone says each zone should be at `at`: SET when the fire touches the zone, GO when it reaches its first home. */
+  zones?: {
+    zoneId: string;
+    level: "ready" | "set" | "go";
+    touchAt: string;
+    goAt: string | null;
+    setInMin: number; // minutes until the fire touches the zone (negative = already has)
+    goInMin: number | null; // minutes until it reaches the zone's first home
+  }[];
 };
 
 export const api = {

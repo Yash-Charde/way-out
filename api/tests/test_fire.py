@@ -127,33 +127,40 @@ async def test_tiger_reseed_replaces_this_envs_rows(with_tiger, db):
 # ── fire → zone status ────────────────────────────────────────────────────────
 
 
-async def test_fire_moves_zones_forward_set_then_go(db):
+async def test_zones_go_set_when_the_fire_touches_them_and_go_at_the_first_home(db):
     from api.hazard import zones as fz
 
     await seed.seed(db, homes=60, rng_seed=3)
-    firsts = await fz.first_arrivals(db)
-    zid, first = min(firsts.items(), key=lambda kv: kv[1])
+    run = await _run(db)
+    sched = {z["zoneId"]: z for z in await fz.schedule(db)}
+    zid, z = min(sched.items(), key=lambda kv: kv[1]["touchAt"])
+    assert run.ignited_at < z["touchAt"] < z["goAt"] == (await fz.first_arrivals(db))[zid]
+
+    # The touch is real: just before it the front is clear of the outline, just after it crosses it.
+    ring = [tuple(p) for p in (await db.zones.find_one({"_id": zid}))["polygon"]["coordinates"][0]]
+    edge = fz._densify(ring)
+    e = (z["touchAt"] - run.ignited_at).total_seconds() / 60
+    assert not any(spread.inside(p, spread.front(run, e - 0.5, points=720)) for p in edge)
+    assert any(spread.inside(p, spread.front(run, e + 0.5, points=720)) for p in edge)
 
     async def status():
         return (await db.zones.find_one({"_id": zid}))["status"]
 
-    assert await fz.tick(db, now=first - timedelta(minutes=fz.SET_LEAD_MIN + 5)) == []
-    assert await status() == "ready"
-    assert (zid, "set") in await fz.tick(db, now=first - timedelta(minutes=fz.SET_LEAD_MIN - 1))
-    assert await status() == "set"
-    assert (await db.zones.find_one({"_id": zid}))["source"] == "fire"
-    assert (zid, "go") in await fz.tick(db, now=first - timedelta(minutes=fz.GO_LEAD_MIN - 1))
+    assert await fz.tick(db, now=run.ignited_at) == [] and await status() == "ready"
+    assert await fz.tick(db, now=z["touchAt"] - timedelta(seconds=30)) == []
+    assert (zid, "set") in await fz.tick(db, now=z["touchAt"] + timedelta(seconds=1))
+    assert await status() == "set" and (await db.zones.find_one({"_id": zid}))["source"] == "fire"
+    assert await fz.tick(db, now=z["goAt"] - timedelta(seconds=30)) == []
+    assert (zid, "go") in await fz.tick(db, now=z["goAt"])
     assert await status() == "go"
-    # forward only: an earlier time never moves it back
-    assert await fz.tick(db, now=first - timedelta(hours=3)) == []
-    assert await status() == "go"
+    assert await fz.tick(db, now=run.ignited_at) == [] and await status() == "go"  # forward only
 
 
 async def test_fire_leaves_clear_and_respects_the_switch(db):
     from api.hazard import zones as fz
 
     await seed.seed(db, homes=60, rng_seed=3)
-    late = max((await fz.first_arrivals(db)).values())
+    late = max(z["goAt"] for z in await fz.schedule(db))
     await db.simControl.update_one({"_id": "sim"}, {"$set": {"standIns.fireZones": False}}, upsert=True)
     assert await fz.tick(db, now=late) == []
     await db.simControl.update_one({"_id": "sim"}, {"$set": {"standIns.fireZones": True}})
@@ -168,7 +175,10 @@ async def test_fire_view_projects_zone_levels_without_changing_zones(client, db)
     from api.hazard import zones as fz
 
     await seed.seed(db, homes=60, rng_seed=3)
-    late = max((await fz.first_arrivals(db)).values())
+    late = max(z["goAt"] for z in await fz.schedule(db))
+    run = await _run(db)
+    early = (await client.get("/hazards/fire", params={"at": run.ignited_at.isoformat()})).json()["fire"]
+    assert {z["level"] for z in early["zones"]} == {"ready"} and all(z["setInMin"] > 0 for z in early["zones"])
     f = (await client.get("/hazards/fire", params={"at": late.isoformat()})).json()["fire"]
     assert {z["level"] for z in f["zones"]} == {"go"}
     assert {z["status"] async for z in db.zones.find({})} == {"ready"}
