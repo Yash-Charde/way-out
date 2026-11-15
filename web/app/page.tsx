@@ -3,24 +3,15 @@
 /**
  * Kiosk: a visitor picks a house, enters their phone number, and Way Out calls them as that
  * resident. The call is the real agent; the transcript and record fill in here as they talk.
- * The map is the console's real map (MapLibre + deck.gl); the page layout is the kiosk's own.
+ * The map is the lightweight house picker (HomeMap), not the console map.
  */
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { SimBadge } from "@/components/Shell";
 import { AppHeader, Arrow } from "@/components/ui";
 import { ApiError, api, type HouseholdRecord } from "@/lib/api";
 import { useLive } from "@/lib/live";
-import { useTheme } from "@/lib/theme";
 import { recordRows } from "./calls/format";
-
-const MapView = dynamic(() => import("./console/MapView"), {
-  ssr: false,
-  loading: () => <div className="absolute inset-0 bg-bg" />,
-});
-
-type Doc = { id: string } & Record<string, unknown>;
-type Home = { id: string; address?: string; role?: string; simulated?: boolean };
+import { HomeMap, type Home } from "./HomeMap";
 
 type Turn = { callId: string; speaker: "agent" | "resident"; text: string; at?: string };
 
@@ -53,32 +44,9 @@ export default function Kiosk() {
   const connect = useLive((s) => s.connect);
   useEffect(() => connect(), [connect]);
   const households = useLive((s) => s.households);
-  const requests = useLive((s) => s.requests);
-  const vehicles = useLive((s) => s.vehicles);
-  const assignments = useLive((s) => s.assignments);
-  const liveZones = useLive((s) => s.zones);
   const liveTurns = useLive((s) => s.turns);
-  const { theme } = useTheme();
 
-  // Static map layers (shelters, zone outlines, closures): same source as the console.
-  const [statics, setStatics] = useState<{ closures: Doc[]; shelters: Doc[]; zones: Doc[]; hazards: Doc[] }>({
-    closures: [],
-    shelters: [],
-    zones: [],
-    hazards: [],
-  });
-  useEffect(() => {
-    api
-      .hazards()
-      .then((h) => setStatics({ closures: h.closures, shelters: h.shelters ?? [], zones: h.zones ?? [], hazards: h.hazards }))
-      .catch(() => undefined);
-  }, []);
-  const zones = useMemo(
-    () => statics.zones.map((z) => ({ ...z, ...(liveZones[z.id] ? { status: liveZones[z.id].status } : {}) })),
-    [statics.zones, liveZones],
-  );
-
-  const homes = useMemo(() => Object.values(households) as Doc[], [households]);
+  const homes = useMemo(() => Object.values(households) as unknown as Home[], [households]);
   const [selected, setSelected] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -112,26 +80,19 @@ export default function Kiosk() {
     <main className="flex h-dvh flex-col">
       <AppHeader />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <section className="relative min-h-64 flex-1 bg-bg">
-          <MapView
-            households={homes}
-            requests={requests}
-            vehicles={Object.values(vehicles)}
-            assignments={Object.values(assignments).filter((a) => a.status === "accepted")} // runs only
-            closures={statics.closures}
-            hazards={statics.hazards}
-            shelters={statics.shelters}
-            zones={zones}
-            selectedHouseholdId={selected}
-            highlightAssignmentId={null}
-            drawing={null}
-            onSelectHousehold={(id) => {
-              if (!callId) setSelected(id);
+        <section className="relative min-h-64 flex-1 bg-bg p-2">
+          {/* Blueprint grid behind the house picker. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage:
+                "linear-gradient(color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px)," +
+                "linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px)",
+              backgroundSize: "48px 48px",
             }}
-            onMapClick={() => undefined}
-            theme={theme}
-            padding={{ top: 30, bottom: 30, left: 30, right: 30 }}
           />
+          <HomeMap homes={homes} selected={selected} onSelect={(id) => (callId ? null : setSelected(id))} />
           <div className="pointer-events-none absolute top-4 left-4 flex items-center gap-2">
             <span className="glass flex items-center gap-2 rounded-full! px-3 py-1.5 text-xs text-muted">
               <SimBadge /> Oak Creek Canyon · other homes are simulated
