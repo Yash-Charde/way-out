@@ -107,3 +107,11 @@ Simulated, not observed. Generated 2026-11-15T02:17:13Z from git `a4de1ed` (PR #
 | X-01 | Share of people who needed a ride picked up before their deadline: Way Out (greedy dispatch) vs today's 911 queue | 90.9% vs 47.6% (middle-setting medians); range 86.2–95.9% vs 36.6–52.7% across low/middle/high | Way Out simulation, `headline` | 2026-11-14 | `data/sim-results.json` |
 | X-02 | Today, if only 55% of riders call 911 | 33.8% (middle); 26.5–39.3% across settings | Way Out simulation, `sensitivity.today55` | 2026-11-14 | `data/sim-results.json` |
 | X-03 | Today, if 911 could also dispatch the neighbor cars | 65.6% (middle); 57.1–67.3% across settings | Way Out simulation, `sensitivity.todayWithNeighbors` | 2026-11-14 | `data/sim-results.json` |
+
+## I. Agent evals (D1-09) — `data/eval-results.json`
+
+Simulated personas (the 40 in `data/personas.json`) run through the real agent code in-process. Generated 2026-11-15T02:27:47Z (PR #61, Deep). Interpreter: keyword rules; no model judge. Don't quote this file's latency or field accuracy: Deep will send numbers from a real call.
+
+| ID | Claim | Exact figure | Outlet | Date | Link |
+|---|---|---|---|---|---|
+| E-01 | Agent turns with no promise before a driver accepted, checked by code on simulated personas | 620 of 620 (scripted mode; 0 failures) | Way Out evals, `modes.script.summary.honesty` | 2026-11-14 | `data/eval-results.json` |

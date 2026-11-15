@@ -82,10 +82,10 @@ Drivers are protected too. The driver app shows fire distance, flags a route int
 ## Accomplishments that we're proud of
 
 - A real phone call that updates a dispatcher's map while the person is still talking, including a mid-call correction.
-- **[__]/[__]** agent turns passed the honesty judge (no promise before a driver accepted).
+- **620/620** agent turns made no promise before a driver accepted, checked by code on simulated personas (E-01).
 - In simulation, **91%** of people who needed a ride were picked up before their deadline with Way Out, vs **48%** with today's 911 queue (median of 50 runs per setting; range 86–96% vs 37–53% across low, middle and high settings). *Simulated: 200 homes, Oak Creek Canyon scenario* (X-01).
   - That baseline is generous to today: it assumes every person who needs a ride gets through to 911. If only 55% call, today drops to 34% (X-02). Even if 911 could also send the neighbors' cars, today reaches 66% (X-03).
-- Median voice turn latency **[__] ms** (p95 [__] ms).
+- Median voice turn latency **[__] ms** (p95 [__] ms). *(Wait for Deep's numbers from a real test call. Don't use the current eval latency: it's the keyword checker in-process, not a call.)*
 - 77 backend tests, including every illegal status transition and 20 concurrent accepts.
 - 22 sourced facts behind every number in our story; nothing on a slide without a citation.
 
