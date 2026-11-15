@@ -110,12 +110,14 @@ export function Console() {
   const liveZones = useLive((s) => s.zones);
   const liveHazards = useLive((s) => s.hazards);
   const plan = useLive((s) => s.plan);
+  const lastSafety = useLive((s) => s.safety[s.safety.length - 1]);
 
   const [now, setNow] = useState(() => Date.now());
   const [selected, setSelected] = useState(0);
   const [selectedHome, setSelectedHome] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [alert, setAlert] = useState<{ id: string; text: string } | null>(null);
   const [standIns, setStandIns] = useState<StandIns | null>(null);
   const [statics, setStatics] = useState<Statics>({ hazards: [], closures: [], shelters: [], zones: [] });
   const [drawing, setDrawing] = useState<LonLat[] | null>(null);
@@ -131,6 +133,18 @@ export function Console() {
   }, []);
 
   useEffect(() => connect(), [connect]);
+  // Driver safety alerts (D2-08): SOS / man-down from the driver app arrive on /live as vehicle.safety.
+  useEffect(() => {
+    if (!lastSafety) return;
+    const { id, state, lon, lat } = lastSafety.data as { id: string; state: string; lon?: number; lat?: number };
+    if (state === "sos" || state === "man_down") {
+      const name = String(useLive.getState().vehicles[id]?.driverName ?? id);
+      const where = typeof lat === "number" && typeof lon === "number" ? ` at ${lat.toFixed(4)}, ${lon.toFixed(4)}` : "";
+      setAlert({ id, text: `${state === "sos" ? "SOS" : "MAN DOWN"}: ${name}${where}` });
+    } else {
+      setAlert((a) => (a?.id === id ? null : a));
+    }
+  }, [lastSafety]);
   useEffect(() => {
     void loadStatics();
   }, [loadStatics]);
@@ -337,6 +351,18 @@ export function Console() {
           </label>
         </div>
       </header>
+
+      {alert && (
+        <div
+          role="alert"
+          className="absolute left-1/2 top-32 z-20 -translate-x-1/2 rounded-lg border border-fire bg-fire/20 px-4 py-2 text-sm font-semibold text-fire"
+        >
+          {alert.text}
+          <button className="ml-3 text-muted" onClick={() => setAlert(null)}>
+            ×
+          </button>
+        </div>
+      )}
 
       {note && (
         <div className={`${PANEL} absolute left-1/2 top-20 -translate-x-1/2 px-4 py-2 text-sm`}>

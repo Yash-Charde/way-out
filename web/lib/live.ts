@@ -64,8 +64,15 @@ export const useLive = create<LiveState>((set, get) => ({
             vehicles: upsert(s.vehicles, { id, heading, location: { type: "Point", coordinates: [lon, lat] } }),
           };
         }
-        case "vehicle.safety":
-          return { safety: [...s.safety, e].slice(-50) };
+        case "vehicle.safety": {
+          // Also mark the vehicle itself, so the fleet list and map turn red without a reload.
+          const { id, state } = e.data as { id: string; state: string };
+          const prev = (s.vehicles[id]?.safety as Record<string, unknown> | undefined) ?? {};
+          return {
+            safety: [...s.safety, e].slice(-50),
+            vehicles: upsert(s.vehicles, { id, safety: { ...prev, state, at: e.at } }),
+          };
+        }
         case "call.turn":
           return { turns: [...s.turns, e].slice(-500) };
         case "hazard.updated":
