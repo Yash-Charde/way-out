@@ -64,7 +64,8 @@ async def road_with_closures(db: AsyncIOMotorDatabase) -> Road:
 
 async def sim_control(db: AsyncIOMotorDatabase) -> dict[str, bool]:
     doc = await db.simControl.find_one({"_id": "sim"}) or {}
-    return {"voice": False, "drivers": False, "approval": False, **(doc.get("standIns") or {})}
+    # fireZones: the simulated fire moves zones READY → SET → GO (api/hazard/zones.py). On by default.
+    return {"voice": False, "drivers": False, "approval": False, "fireZones": True, **(doc.get("standIns") or {})}
 
 
 async def solve_once(db: AsyncIOMotorDatabase, solver: str = "greedy", *, now: datetime | None = None) -> dict:

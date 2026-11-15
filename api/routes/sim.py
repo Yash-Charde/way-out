@@ -62,6 +62,7 @@ class StandIns(BaseModel):
     voice: bool | None = None
     drivers: bool | None = None
     approval: bool | None = None
+    fireZones: bool | None = None
 
 
 class SimControl(BaseModel):

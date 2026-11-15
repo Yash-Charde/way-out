@@ -4,7 +4,9 @@
  * Fire replay bar: scrub or play the simulated fire. Each position asks GET /hazards/fire?at=…, which reads
  * the detections from Tiger Data (a TimescaleDB hypertable) when the API has TIGER_DATABASE_URL.
  *
- * "Live" follows the clock (refreshes once a minute; the fire is a function of time, nothing to push).
+ * "Live" follows the clock (refreshes every 5 s; the fire is a function of time, nothing to push).
+ * The fire also moves zones READY → SET → GO on the server (api/hazard/zones.py); the chips show each
+ * zone's fire status and the switch turns that off.
  * A new seed (the `fire_run` hazard arriving on /live) refetches straight away.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,7 +15,7 @@ import { SimBadge } from "@/components/Shell";
 
 const PLAY_STEP_MIN = 2; // scenario minutes per tick
 const PLAY_TICK_MS = 200; // → 10 scenario minutes per second: 8 hours in under a minute
-const LIVE_REFRESH_MS = 60_000;
+const LIVE_REFRESH_MS = 5_000; // live: the front moves ~60 m a minute, so a 5 s refresh looks continuous
 
 function hm(min: number): string {
   const sign = min < 0 ? "−" : "+";
@@ -38,13 +40,30 @@ function Sparkline({ activity }: { activity: FireView["activity"] }) {
   );
 }
 
+const LEVEL_STYLE: Record<string, string> = {
+  go: "border-fire/60 bg-fire/15 text-fire",
+  set: "border-help/60 bg-help/15 text-help",
+  ready: "border-line text-muted",
+};
+
+function zoneShort(id: string, names: Record<string, string>): string {
+  const m = /zone[ _]?(\d+)/i.exec(names[id] ?? id);
+  return m ? `Zone ${m[1]}` : names[id] ?? id;
+}
+
 export function FireReplay({
   runKey,
   onFire,
+  zoneNames = {},
+  fireZones,
+  onFireZones,
   className = "",
 }: {
   runKey: string; // changes when a new seed starts a new run
-  onFire: (f: FireView | null) => void;
+  onFire: (f: FireView | null, live: boolean) => void;
+  zoneNames?: Record<string, string>;
+  fireZones?: boolean; // server switch: the fire moves zones READY → SET → GO
+  onFireZones?: (on: boolean) => void;
   className?: string;
 }) {
   const [fire, setFire] = useState<FireView | null>(null);
@@ -61,7 +80,7 @@ export function FireReplay({
         if (n !== seq.current) return; // a newer request is on its way
         setFire(r.fire);
         setReason(r.fire ? null : r.reason ?? null);
-        onFire(r.fire);
+        onFire(r.fire, when === null);
       } catch {
         /* keep the last picture; the map still works */
       }
@@ -203,6 +222,42 @@ export function FireReplay({
           </>
         )}
       </div>
+      {!!fire.zones?.length && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-line pt-1.5 text-[11px]">
+          <span className="text-muted">{at === null ? "Zones by fire" : "Zones by fire at this time"}</span>
+          {fire.zones.map((z) => (
+            <span
+              key={z.zoneId}
+              title={`Front reaches this zone's first home ${
+                z.leadMin > 0 ? `in ${Math.round(z.leadMin)} min` : `${Math.round(-z.leadMin)} min ago`
+              } (SET at 60 min, GO at 20 min)`}
+              className={`rounded-full border px-2 py-px font-semibold tracking-[0.04em] ${LEVEL_STYLE[z.level]}`}
+            >
+              {zoneShort(z.zoneId, zoneNames)} {z.level.toUpperCase()}
+              {z.level !== "go" && z.leadMin > 0 && (
+                <span className="font-normal opacity-80">
+                  {" "}
+                  · {z.level === "ready" ? "SET" : "GO"} in {Math.max(0, Math.round(z.leadMin - (z.level === "ready" ? 60 : 20)))}m
+                </span>
+              )}
+            </span>
+          ))}
+          {onFireZones && (
+            <label
+              className="ml-auto flex cursor-pointer items-center gap-1.5 text-muted"
+              title="When on, the fire changes the real zone status (and starts the dialer at SET)"
+            >
+              <input
+                type="checkbox"
+                className="accent-[var(--color-fire)]"
+                checked={!!fireZones}
+                onChange={(e) => onFireZones(e.target.checked)}
+              />
+              fire sets zones
+            </label>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -108,10 +108,10 @@ received ──approve──► approved ──driver accepts──► driver_ac
 One more doc, `_id: "fire_run"` (`kind: fire_run`, no geometry): the current fire replay, written by every seed. `{ runId, scenario, ignition (Point), windFromDeg, ignitedAt, replayHours, store: pending|tiger|model, detections, simulated: true }`. Its front reaches each simulated home exactly at that home's `fireArrivalAt`. *Added with the fire map.*
 
 ### `zones`
-`{ _id, name, county, status: ready|set|go|clear, polygon, source: tinyfish|manual, sourceUrl, updatedAt }`. `drill: {published, publishedAt}` (what the drill page shows; changes nothing by itself) and `watch: {armedUntil, lastCheckAt, lastSeen, lastError, lastChangeAt, checks}` (TinyFish watcher). Collection `tinyfishUsage` `{_id: "YYYY-MM-DD", fetches}` counts free Fetch calls against the daily cap.
+`{ _id, name, county, status: ready|set|go|clear, polygon, source: tinyfish|manual|fire, sourceUrl, updatedAt }`. `source: fire`: the simulated fire moved it (api/hazard/zones.py: SET when the front is 60 min from the zone's first home, GO at 20; forward only, never touches CLEAR; simulated zones only). `drill: {published, publishedAt}` (what the drill page shows; changes nothing by itself) and `watch: {armedUntil, lastCheckAt, lastSeen, lastError, lastChangeAt, checks}` (TinyFish watcher). Collection `tinyfishUsage` `{_id: "YYYY-MM-DD", fetches}` counts free Fetch calls against the daily cap.
 
 ### Also
-`shelters` (location, capacity), `roadClosures` (LineString, source, at), `auditLog` (kind, message, refs, at), `plans` (version, solver, solveMs, objective, changedOffers; also proposals, unservable, unreachableCommitted, requested), `simControl` (one doc `_id: "sim"`, `standIns: {voice, drivers, approval}`).
+`shelters` (location, capacity), `roadClosures` (LineString, source, at), `auditLog` (kind, message, refs, at), `plans` (version, solver, solveMs, objective, changedOffers; also proposals, unservable, unreachableCommitted, requested), `simControl` (one doc `_id: "sim"`, `standIns: {voice, drivers, approval, fireZones}`; `fireZones` defaults to on).
 
 ### Tiger Data (Postgres / Timescale hypertables)
 **Built:** `fire_detections(time, env, run_id, lon, lat, frp, confidence, simulated)`: hypertable, 1-hour chunks, index `(run_id, time DESC)`. Created by the API on first use; a seed replaces its env's rows with the new run (~3,100 simulated hotspots over 8 h). Read by `GET /hazards/fire` (rows up to `at` + `time_bucket('15 minutes')` activity).
@@ -150,7 +150,7 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | POST | `/vehicles/{id}/presence` | driver app open (every ~20 s) → `{ok}`; stand-in drivers leave the vehicle alone for 2 min |
 | POST | `/roads/closures` | `{geometry, source}` → triggers re-plan |
 | GET | `/hazards` | → `{hazards, closures, shelters, zones}`: fire front, detections, road closures, shelters, zone outlines (what the console map draws) |
-| GET | `/hazards/fire` | `?at=ISO` (default now) → `{fire: {runId, label, simulated, source: tiger\|model, ignition, ignitedAt, endsAt, at, elapsedMin, windFromDeg, burned: ring, acres, active: [{lon, lat, frp, ageMin}], hotspots, activity: [{at, hotspots, frp}], homesReached, homesTotal}}`, or `{fire: null, reason}` before any seed. Scenario input, not a forecast. *Added with the fire map.* |
+| GET | `/hazards/fire` | `?at=ISO` (default now) → `{fire: {runId, label, simulated, source: tiger\|model, ignition, ignitedAt, endsAt, at, elapsedMin, windFromDeg, burned: ring, acres, active: [{lon, lat, frp, ageMin}], hotspots, activity: [{at, hotspots, frp}], homesReached, homesTotal, zones: [{zoneId, level, firstArrivalAt, leadMin}]}}` (`zones` = what the fire alone says each zone should be at `at`; read-only), or `{fire: null, reason}` before any seed. Scenario input, not a forecast. *Added with the fire map.* |
 | POST | `/hazards/photo` | multipart image + lon/lat → Gemini vision → hazard (not built: 501) |
 | GET | `/zones` | → `[zone]` |
 | GET | `/zones/{id}/drill` | → drill page view: published status, zone status, watcher, free-tier usage |
@@ -160,7 +160,7 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | POST | `/zones/{id}/status` | `{status, sourceUrl}` (TinyFish webhook) → starts dialing at `set` |
 | POST | `/sim/seed` | `?scenario=pocket-fire&homes=200&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world: 200 homes, 8 vehicles, 2 shelters, 2 zones. Real households stay |
 | POST | `/sim/census` | answer every unreached simulated home from its persona (no calls) → `{requests}` |
-| POST / GET | `/sim/control` | `{standIns?: {voice, drivers, approval}: bool, speedup?: 1–600}` (partial updates) → `{standIns, speedup}`. `drivers`: simulated vehicles accept after 6 s and drive their runs; `speedup`: they drive and board N× faster |
+| POST / GET | `/sim/control` | `{standIns?: {voice, drivers, approval, fireZones}: bool, speedup?: 1–600}` (partial updates) → `{standIns, speedup}`. `drivers`: simulated vehicles accept after 6 s and drive their runs; `speedup`: they drive and board N× faster |
 | GET | `/system/metrics` | → `{live: {calls, latencyMs: {realPhone, standIns}, interpreter, fallbacks, acks}, evals: data/eval-results.json \| null, dispatch: data/sim-results.json \| null, census: {reach, openRequests, duplicatesMerged}, audit: [..40]}` |
 | GET | `/health` | → `{ok, env, version, gitSha}` |
 

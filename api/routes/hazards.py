@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query
 from api.core.db import get_db
 from api.core.util import utcnow
 from api.hazard import fire
+from api.hazard import zones as fire_zones
 from api.routes._util import not_yet, out
 
 router = APIRouter(prefix="/hazards", tags=["hazards"])
@@ -32,7 +33,12 @@ async def fire_view(
     """The simulated fire as of `at`: burned area, active edge (last 30 min), 15-minute activity, homes
     reached. Detections come from Tiger Data (`fire_detections` hypertable) when TIGER_DATABASE_URL is set,
     otherwise from the same model in memory (`source` says which). Scenario input, not a forecast."""
-    return await fire.view(get_db(), at or utcnow())
+    when = at or utcnow()
+    view = await fire.view(get_db(), when)
+    if view["fire"] is not None:
+        # What the fire alone says each zone should be at `when` (SET 60 min out, GO 20 min out).
+        view["fire"]["zones"] = await fire_zones.levels_at(get_db(), when)
+    return view
 
 
 @router.post("/photo")

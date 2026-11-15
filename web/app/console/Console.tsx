@@ -182,6 +182,11 @@ export function Console() {
   const [drawing, setDrawing] = useState<LonLat[] | null>(null);
   const [panels, setPanels] = useState(true);
   const [fireView, setFireView] = useState<FireView | null>(null);
+  const [fireLive, setFireLive] = useState(true);
+  const onFire = useCallback((f: FireView | null, live: boolean) => {
+    setFireView(f);
+    setFireLive(live);
+  }, []);
 
   const loadStatics = useCallback(async () => {
     try {
@@ -251,6 +256,12 @@ export function Console() {
     () => statics.zones.map((z) => ({ ...z, ...(liveZones[z.id] ? { status: liveZones[z.id].status } : {}) })),
     [statics.zones, liveZones],
   );
+  // Scrubbing the fire replay: zones show what the fire would make them then (the real status is untouched).
+  const mapZones = useMemo(() => {
+    if (fireLive || !fireView?.zones) return zones;
+    const lv = Object.fromEntries(fireView.zones.map((z) => [z.zoneId, z.level]));
+    return zones.map((z) => (lv[z.id] ? { ...z, status: lv[z.id] } : z));
+  }, [zones, fireLive, fireView]);
   const hazards = useMemo(
     () => Object.values({ ...Object.fromEntries(statics.hazards.map((h) => [h.id, h])), ...liveHazards }),
     [statics.hazards, liveHazards],
@@ -331,7 +342,7 @@ export function Console() {
         closures={statics.closures}
         hazards={hazards}
         shelters={statics.shelters}
-        zones={zones}
+        zones={mapZones}
         selectedHouseholdId={selectedHome}
         highlightAssignmentId={offers[selected]?.id ?? null}
         drawing={drawing}
@@ -671,7 +682,14 @@ export function Console() {
           panels ? "right-[25.5rem] left-[23.5rem]" : "right-3 left-3"
         }`}
       >
-        <FireReplay runKey={fireRunKey} onFire={setFireView} className="pointer-events-auto w-full max-w-[40rem]" />
+        <FireReplay
+          runKey={fireRunKey}
+          onFire={onFire}
+          zoneNames={Object.fromEntries(statics.zones.map((z) => [z.id, String(z.name ?? z.id)]))}
+          fireZones={standIns?.fireZones ?? true}
+          onFireZones={(v) => run("Fire sets zones", async () => setStandIns((await api.simControl({ fireZones: v })).standIns))}
+          className="pointer-events-auto w-full max-w-[40rem]"
+        />
       </div>
 
       {!panels && (

@@ -46,6 +46,8 @@ export type FireView = {
   activity: { at: string; hotspots: number; frp: number }[];
   homesReached: number;
   homesTotal: number;
+  /** What the fire alone says each zone should be at `at`: SET 60 min before the front reaches its first home, GO 20. */
+  zones?: { zoneId: string; level: "ready" | "set" | "go"; firstArrivalAt: string; leadMin: number }[];
 };
 
 export const api = {
@@ -119,7 +121,7 @@ export type RunStop = Doc & {
 };
 export type DriverRun = { vehicle: Doc; offers: RunStop[]; run: RunStop[]; shelters: Doc[]; now: string };
 
-export type StandIns = { voice: boolean; drivers: boolean; approval: boolean };
+export type StandIns = { voice: boolean; drivers: boolean; approval: boolean; fireZones: boolean };
 
 type Latency = { p50: number | null; p95: number | null; turns: number };
 export type EvalSummary = {

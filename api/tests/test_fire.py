@@ -122,3 +122,53 @@ async def test_tiger_reseed_replaces_this_envs_rows(with_tiger, db):
     }
     data = await tiger.read_until(second.run_id, second.ignited_at + timedelta(hours=9))
     assert len(data["detections"]) == len(spread.detections(second))
+
+
+# ── fire → zone status ────────────────────────────────────────────────────────
+
+
+async def test_fire_moves_zones_forward_set_then_go(db):
+    from api.hazard import zones as fz
+
+    await seed.seed(db, homes=60, rng_seed=3)
+    firsts = await fz.first_arrivals(db)
+    zid, first = min(firsts.items(), key=lambda kv: kv[1])
+
+    async def status():
+        return (await db.zones.find_one({"_id": zid}))["status"]
+
+    assert await fz.tick(db, now=first - timedelta(minutes=fz.SET_LEAD_MIN + 5)) == []
+    assert await status() == "ready"
+    assert (zid, "set") in await fz.tick(db, now=first - timedelta(minutes=fz.SET_LEAD_MIN - 1))
+    assert await status() == "set"
+    assert (await db.zones.find_one({"_id": zid}))["source"] == "fire"
+    assert (zid, "go") in await fz.tick(db, now=first - timedelta(minutes=fz.GO_LEAD_MIN - 1))
+    assert await status() == "go"
+    # forward only: an earlier time never moves it back
+    assert await fz.tick(db, now=first - timedelta(hours=3)) == []
+    assert await status() == "go"
+
+
+async def test_fire_leaves_clear_and_respects_the_switch(db):
+    from api.hazard import zones as fz
+
+    await seed.seed(db, homes=60, rng_seed=3)
+    late = max((await fz.first_arrivals(db)).values())
+    await db.simControl.update_one({"_id": "sim"}, {"$set": {"standIns.fireZones": False}}, upsert=True)
+    assert await fz.tick(db, now=late) == []
+    await db.simControl.update_one({"_id": "sim"}, {"$set": {"standIns.fireZones": True}})
+    zid = next(iter(await fz.first_arrivals(db)))
+    await db.zones.update_one({"_id": zid}, {"$set": {"status": "clear"}})
+    changed = dict(await fz.tick(db, now=late))
+    assert zid not in changed and set(changed.values()) == {"go"}
+    assert (await db.zones.find_one({"_id": zid}))["status"] == "clear"
+
+
+async def test_fire_view_projects_zone_levels_without_changing_zones(client, db):
+    from api.hazard import zones as fz
+
+    await seed.seed(db, homes=60, rng_seed=3)
+    late = max((await fz.first_arrivals(db)).values())
+    f = (await client.get("/hazards/fire", params={"at": late.isoformat()})).json()["fire"]
+    assert {z["level"] for z in f["zones"]} == {"go"}
+    assert {z["status"] async for z in db.zones.find({})} == {"ready"}
