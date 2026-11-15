@@ -99,7 +99,7 @@ def events_for_change(coll: str, change: dict[str, Any], hub_: LiveHub = hub) ->
             out.append(
                 ("vehicle.moved", {"id": doc["id"], "lon": coords[0], "lat": coords[1], "heading": doc.get("heading")})
             )
-        if is_insert or touched - {"location", "heading", "speedMps", "lastSeenAt", "safety"}:
+        if is_insert or touched - {"location", "heading", "speedMps", "lastSeenAt", "safety", "phoneSeenAt"}:
             out.append(("vehicle.updated", doc))
         return out
 

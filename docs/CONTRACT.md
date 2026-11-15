@@ -77,7 +77,8 @@ received ──approve──► approved ──driver accepts──► driver_ac
   "location": { "type": "Point", "coordinates": [...] }, "heading": 120, "speedMps": 12,
   "status": "idle|offered|on_run|offline",
   "safety": { "state": "ok|check|man_down|sos", "at": "ISO", "location": {...} },
-  "simulated": true, "lastSeenAt": "ISO"
+  "simulated": true, "lastSeenAt": "ISO",
+  "phoneSeenAt": "ISO"            // driver app open on a phone; stand-in drivers skip it (added D2-05)
 }
 ```
 
@@ -144,6 +145,8 @@ Auth: dashboard and driver endpoints are open in demo mode. `/agent/*` and webho
 | POST | `/vehicles/{id}/position` | `{lon, lat, heading, speedMps}` | Yash |
 | POST | `/vehicles/{id}/safety` | `{state, lon, lat}` | Yash |
 | GET | `/vehicles` | → `[vehicle]` | Yash |
+| GET | `/vehicles/{id}/run` | → `{vehicle, offers[], run[], shelters[], now}`; each offer/stop = assignment + `request {id,status,need,deadlineAt,escalation}` + `household {id,address,location,language}` *(added D2-05)* | Yash |
+| POST | `/vehicles/{id}/presence` | driver app open (every ~20 s) → `{ok}`; stand-in drivers leave the vehicle alone for 2 min *(added D2-05)* | Yash |
 | POST | `/roads/closures` | `{geometry, source}` → triggers re-plan | Yash |
 | GET | `/hazards` | → fire front, detections, deadlines | Yash |
 | POST | `/hazards/photo` | multipart image + lon/lat → Gemini vision → hazard | Yash (P2) |
@@ -155,7 +158,7 @@ Auth: dashboard and driver endpoints are open in demo mode. `/agent/*` and webho
 | POST | `/zones/{id}/status` | `{status, sourceUrl}` (TinyFish webhook) → starts dialing at `set` | Deep |
 | POST | `/sim/seed` | `?scenario=pocket-fire&homes=200&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world: 200 homes, 8 vehicles, 2 shelters, 2 zones. Real households stay | Yash |
 | POST | `/sim/census` | answer every unreached simulated home from its persona (no calls) → `{requests}` *(added D2-02)* | Yash |
-| POST / GET | `/sim/control` | `{standIns: {voice, drivers, approval}: bool}` (partial updates) → current `standIns` | Yash |
+| POST / GET | `/sim/control` | `{standIns?: {voice, drivers, approval}: bool, speedup?: 1–600}` (partial updates) → `{standIns, speedup}`. `drivers`: simulated vehicles accept after 6 s and drive their runs; `speedup`: they drive and board N× faster | Yash |
 | GET | `/system/metrics` | → latency p50/p95, honesty, accuracy, dispatch results (`data/sim-results.json` from Yash) | Deep |
 | GET | `/health` | → `{ok, env, version, gitSha}` | Prem |
 
