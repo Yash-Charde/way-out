@@ -16,6 +16,8 @@ import type { Theme } from "@/lib/theme";
 import { useEffect, useMemo, useState } from "react";
 import MapGL, { useControl, type MapLayerMouseEvent } from "react-map-gl/maplibre";
 import { addRelief, wayOutStyle } from "./mapStyle";
+import { BasemapSwitcher } from "@/components/BasemapSwitcher";
+import { RASTER, useBasemap, type Basemap } from "@/lib/basemaps";
 
 type Doc = { id: string } & Record<string, unknown>;
 type LonLat = [number, number];
@@ -45,6 +47,21 @@ const STYLE_URL: Record<Theme, string> = {
   dark: process.env.NEXT_PUBLIC_MAP_STYLE || "https://tiles.openfreemap.org/styles/dark",
   light: process.env.NEXT_PUBLIC_MAP_STYLE_LIGHT || "https://tiles.openfreemap.org/styles/positron",
 };
+/** Satellite / Topo: raster tiles only; every label we need is drawn by deck.gl. */
+function rasterStyle(b: Basemap): StyleSpecification | null {
+  const r = RASTER[b];
+  if (!r) return null;
+  return {
+    version: 8,
+    sources: Object.fromEntries(
+      r.layers.map((l, i) => [
+        `base-${i}`,
+        { type: "raster", tiles: [l.url], tileSize: 256, maxzoom: l.maxzoom, ...(i === 0 ? { attribution: r.attribution } : {}) },
+      ]),
+    ),
+    layers: r.layers.map((l, i) => ({ id: `base-${i}`, type: "raster", source: `base-${i}`, paint: { "raster-opacity": l.opacity ?? 1 } })),
+  } as StyleSpecification;
+}
 const fallbackStyle = (theme: Theme): StyleSpecification => ({
   version: 8,
   sources: {},
@@ -95,28 +112,37 @@ export type MapViewProps = {
   onMapClick: (p: LonLat) => void;
   theme?: Theme;
   padding?: Padding; // keeps the canyon clear of the page's panels
+  layersClassName?: string; // where the Map / Terrain / Topo / Satellite switch sits
 };
 
 export default function MapView(p: MapViewProps) {
   const theme: Theme = p.theme ?? "dark";
-  const [failed, setFailed] = useState(false); // basemap unreachable: plain background, layers still draw
+  // Base map: "map" = the original OpenFreeMap style; "terrain" = Way Out's recolor + hillshade;
+  // "topo" / "satellite" = raster tiles (lib/basemaps.ts). Remembered per browser.
+  const [basemap, setBasemap] = useBasemap("console", "map");
+  const styleKey = `${theme}-${basemap}`;
+  const [failedFor, setFailedFor] = useState<string | null>(null); // basemap unreachable: plain background
+  const failed = failedFor === styleKey;
   const [loaded, setLoaded] = useState(false);
-  // Our recolored style (mapStyle.ts). The map mounts once it's ready, so the deck.gl overlay never
-  // sees a style swap (a swap drops it).
-  const [styled, setStyled] = useState<{ theme: Theme; style: StyleSpecification } | null>(null);
+  // Vector styles are fetched; the map mounts once the style is ready, so the deck.gl overlay never sees a
+  // style swap (a swap drops it). Raster styles are built locally.
+  const [styled, setStyled] = useState<{ key: string; style: StyleSpecification } | null>(null);
+  const raster = useMemo(() => rasterStyle(basemap), [basemap]);
   useEffect(() => {
+    if (raster) return;
     let off = false;
+    const key = `${theme}-${basemap}`;
     fetch(STYLE_URL[theme])
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((s: StyleSpecification) => !off && setStyled({ theme, style: wayOutStyle(s, theme) }))
+      .then((s: StyleSpecification) => !off && setStyled({ key, style: basemap === "terrain" ? wayOutStyle(s, theme) : s }))
       .catch(() => {
-        if (!off) setFailed(true);
+        if (!off) setFailedFor(key);
       });
     return () => {
       off = true;
     };
-  }, [theme]);
-  const style = failed ? fallbackStyle(theme) : styled?.theme === theme ? styled.style : null;
+  }, [theme, basemap, raster]);
+  const style = failed ? fallbackStyle(theme) : raster ?? (styled?.key === styleKey ? styled.style : null);
   const halo = HALO[theme];
   const ink = INK[theme];
 
@@ -373,24 +399,38 @@ export default function MapView(p: MapViewProps) {
 
   const onClick = (e: MapLayerMouseEvent) => p.onMapClick([e.lngLat.lng, e.lngLat.lat]);
 
-  if (!style) return <div className="absolute inset-0 bg-bg" />;
+  const layersSwitch = (
+    <BasemapSwitcher
+      vertical
+      value={basemap}
+      onChange={setBasemap}
+      className={p.layersClassName ?? "absolute top-1/2 right-[25.5rem] z-10 -translate-y-1/2"}
+    />
+  );
+  if (!style)
+    return (
+      <>
+        <div className="absolute inset-0 bg-bg" />
+        {layersSwitch}
+      </>
+    );
 
   return (
     <>
     <MapGL
       // A new basemap style drops the deck.gl overlay, so a theme switch (or the offline fallback) rebuilds the map.
-      key={`${theme}-${failed}`}
+      key={`${styleKey}-${failed}`}
       initialViewState={{ bounds: CANYON_BOUNDS, fitBoundsOptions: { padding: p.padding ?? CONSOLE_PADDING } }}
       mapStyle={style}
       style={{ position: "absolute", inset: 0 }}
       onLoad={(e) => {
         setLoaded(true);
-        if (!failed) addRelief(e.target, theme);
+        if (!failed && basemap === "terrain") addRelief(e.target, theme);
       }}
       onError={(e) => {
         // Only a basemap failure before the first load means "offline": a missing terrain tile doesn't.
         const ev = e as unknown as { sourceId?: string };
-        if (!loaded && ev.sourceId !== "wayout-terrain") setFailed(true); // basemap unreachable: plain background
+        if (!loaded && ev.sourceId !== "wayout-terrain") setFailedFor(styleKey); // basemap unreachable: plain background
       }}
       onClick={onClick}
       cursor={p.drawing ? "crosshair" : undefined}
@@ -420,7 +460,8 @@ export default function MapView(p: MapViewProps) {
         }}
       />
     </MapGL>
-    {/* A faint coordinate grid and a vignette: the map reads as an instrument, not a web page. */}
+    {/* Terrain view only: a faint coordinate grid and a vignette, so the map reads as an instrument. */}
+    {basemap === "terrain" && (
     <div
       aria-hidden
       className="pointer-events-none absolute inset-0"
@@ -432,6 +473,8 @@ export default function MapView(p: MapViewProps) {
         backgroundSize: "100% 100%, 64px 64px, 64px 64px",
       }}
     />
+    )}
+    {layersSwitch}
     </>
   );
 }

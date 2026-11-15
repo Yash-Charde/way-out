@@ -5,11 +5,14 @@
  * SR 89A, Oak Creek, the highway, place names, evacuation zones, closures and shelters, with the homes on
  * top as small dots. Pan (drag), zoom (wheel, + / −) and tap a dot to pick a house.
  *
- * Plain SVG on purpose: no tiles, no WebGL, works offline. Everything is projected to screen pixels, so
- * dots, labels and line widths stay the same size at any zoom while the map scales under them.
+ * Plain SVG, no WebGL. "Map" is our own drawing and works offline; Terrain / Topo / Satellite add raster
+ * tiles underneath (lib/basemaps.ts). Everything is projected to screen pixels, so dots, labels and line
+ * widths stay the same size at any zoom while the map scales under them.
  * Red = a person who needs a ride, or fire / a closed road (the only uses of red).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BasemapSwitcher } from "@/components/BasemapSwitcher";
+import { RASTER, RELIEF, tileUrl, useBasemap, type RasterLayer } from "@/lib/basemaps";
 
 export type Home = {
   id: string;
@@ -70,6 +73,16 @@ const KX = 111_320 * Math.cos((LAT0 * Math.PI) / 180);
 const KY = 110_540;
 const toM = ([lon, lat]: LonLat): XY => [(lon + 111.75) * KX, (LAT0 - lat) * KY];
 
+const fromM = ([x, y]: XY): LonLat => [x / KX - 111.75, LAT0 - y / KY];
+const EARTH = 40_075_016.686;
+const tileX = (lon: number, z: number) => Math.floor(((lon + 180) / 360) * 2 ** z);
+const tileY = (lat: number, z: number) => {
+  const r = (lat * Math.PI) / 180;
+  return Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * 2 ** z);
+};
+const tileLon = (x: number, z: number) => (x / 2 ** z) * 360 - 180;
+const tileLat = (y: number, z: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / 2 ** z))) * 180) / Math.PI;
+
 /** Polyline offset sideways by `d` meters (positive = east of a south→north line). */
 function offset(pts: XY[], d: number): XY[] {
   return pts.map((p, i) => {
@@ -107,19 +120,20 @@ export function HomeMap({
   shelters?: Doc[];
   closures?: Doc[];
 }) {
-  const svgRef = useRef<SVGSVGElement>(null);
+  // Callback ref: the <svg> only exists once homes have arrived, so effects key off the element itself.
+  const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const [basemap, setBasemap] = useBasemap("picker", "map");
   const [view, setView] = useState({ s: 1, px: 0, py: 0 });
   const drag = useRef<{ id: number; x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
 
   useEffect(() => {
-    const el = svgRef.current;
-    if (!el) return;
+    if (!svgEl) return;
     const ro = new ResizeObserver(([e]) => setSize({ w: e.contentRect.width, h: e.contentRect.height }));
-    ro.observe(el);
+    ro.observe(svgEl);
     return () => ro.disconnect();
-  }, []);
+  }, [svgEl]);
 
   const pts = useMemo(() => homes.filter((h) => h.location?.coordinates?.length === 2), [homes]);
 
@@ -136,7 +150,8 @@ export function HomeMap({
   const fit = frame && size.w && size.h ? Math.min(size.w / frame.w, size.h / frame.h) : 0;
   const k = fit * view.s; // px per meter
   const project = useCallback(
-    (m: XY): XY => (frame ? [size.w / 2 + (m[0] - frame.cx) * k + view.px, size.h / 2 + (m[1] - frame.cy) * k + view.py] : [0, 0]),
+    (m: XY): XY =>
+      frame ? [size.w / 2 + (m[0] - frame.cx) * k + view.px, size.h / 2 + (m[1] - frame.cy) * k + view.py] : [0, 0],
     [frame, size.w, size.h, k, view.px, view.py],
   );
   const P = useCallback((ll: LonLat) => project(toM(ll)), [project]);
@@ -152,14 +167,18 @@ export function HomeMap({
       setView((v) => {
         const s = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.s * factor));
         const r = s / v.s;
-        return { s, px: sx - size.w / 2 - (sx - size.w / 2 - v.px) * r, py: sy - size.h / 2 - (sy - size.h / 2 - v.py) * r };
+        return {
+          s,
+          px: sx - size.w / 2 - (sx - size.w / 2 - v.px) * r,
+          py: sy - size.h / 2 - (sy - size.h / 2 - v.py) * r,
+        };
       });
     },
     [size.w, size.h],
   );
 
   useEffect(() => {
-    const el = svgRef.current;
+    const el = svgEl;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -168,7 +187,7 @@ export function HomeMap({
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [zoomAt]);
+  }, [svgEl, zoomAt]);
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
@@ -207,19 +226,59 @@ export function HomeMap({
     return { px: m * k, label: m >= 1000 ? `${m / 1000} km` : `${m} m` };
   }, [k]);
 
+  // Raster tiles for the chosen base map, covering the visible area.
+  const raster = basemap === "terrain" ? RELIEF : RASTER[basemap];
+  const tiles = useMemo(() => {
+    if (!raster || !frame || !k || !size.w) return [];
+    const inv = (sx: number, sy: number) =>
+      fromM([frame.cx + (sx - size.w / 2 - view.px) / k, frame.cy + (sy - size.h / 2 - view.py) / k]);
+    const [w0, n0] = inv(0, 0);
+    const [e0, s0] = inv(size.w, size.h);
+    const out: { key: string; href: string; x: number; y: number; w: number; h: number; opacity: number }[] = [];
+    raster.layers.forEach((layer: RasterLayer, li) => {
+      // Zoom where one 256 px tile is about 256 screen px; capped by the layer's max zoom.
+      const z = Math.max(
+        3,
+        Math.min(layer.maxzoom, Math.round(Math.log2((EARTH * Math.cos((LAT0 * Math.PI) / 180) * k) / 256))),
+      );
+      const [x0, x1] = [tileX(w0, z), tileX(e0, z)];
+      const [y0, y1] = [tileY(n0, z), tileY(s0, z)];
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 160) return;
+      for (let x = x0; x <= x1; x++)
+        for (let y = y0; y <= y1; y++) {
+          const [ax, ay] = P([tileLon(x, z), tileLat(y, z)]);
+          const [bx, by] = P([tileLon(x + 1, z), tileLat(y + 1, z)]);
+          out.push({
+            key: `${li}/${z}/${x}/${y}`,
+            href: tileUrl(layer.url, z, x, y),
+            x: ax,
+            y: ay,
+            w: bx - ax,
+            h: by - ay,
+            opacity: layer.opacity ?? 1,
+          });
+        }
+    });
+    return out;
+  }, [raster, frame, k, size.w, size.h, view.px, view.py, P]);
+  const drawn = basemap === "map" || basemap === "terrain"; // our own canyon drawing (bands, contours, creek)
+
   if (!pts.length) {
-    return <p className="relative m-auto p-6 text-sm text-muted">No homes yet. Seed the scenario first (POST /sim/seed).</p>;
+    return (
+      <p className="relative m-auto p-6 text-sm text-muted">No homes yet. Seed the scenario first (POST /sim/seed).</p>
+    );
   }
 
   const sel = pts.find((h) => h.id === selected);
   const ordered = sel ? [...pts.filter((h) => h.id !== selected), sel] : pts;
   const halo = { paintOrder: "stroke", stroke: "var(--color-bg)", strokeWidth: 3.5, strokeLinejoin: "round" } as const;
-  const zoneColor = (st: unknown) => (st === "go" ? "var(--color-fire)" : st === "set" ? "var(--color-help)" : "var(--color-muted)");
+  const zoneColor = (st: unknown) =>
+    st === "go" ? "var(--color-fire)" : st === "set" ? "var(--color-help)" : "var(--color-muted)";
 
   return (
     <div className="absolute inset-0">
       <svg
-        ref={svgRef}
+        ref={setSvgEl}
         className="h-full w-full cursor-grab select-none active:cursor-grabbing"
         style={{ touchAction: "none" }}
         role="group"
@@ -231,16 +290,53 @@ export function HomeMap({
       >
         {fit > 0 && (
           <>
-            {/* terrain: canyon rim, canyon floor, contours */}
-            <path d={path(road.map(project))} fill="none" strokeLinecap="round" strokeLinejoin="round"
-              stroke="color-mix(in srgb, var(--color-help) 9%, transparent)" strokeWidth={4200 * k} />
-            <path d={path(road.map(project))} fill="none" strokeLinecap="round" strokeLinejoin="round"
-              stroke="color-mix(in srgb, var(--color-out) 11%, transparent)" strokeWidth={1500 * k} />
-            {contours.map((c, i) => (
-              <path key={i} d={path(c.map(project))} fill="none" strokeLinejoin="round"
-                stroke="color-mix(in srgb, var(--color-help) 30%, var(--color-line-strong))" strokeOpacity={0.55}
-                strokeWidth={1} strokeDasharray={i % 2 ? "0" : "6 5"} />
+            {/* raster base map (Terrain / Topo / Satellite) */}
+            {tiles.map((t) => (
+              <image
+                key={t.key}
+                href={t.href}
+                x={t.x}
+                y={t.y}
+                width={t.w + 0.5}
+                height={t.h + 0.5}
+                preserveAspectRatio="none"
+                opacity={basemap === "terrain" ? 0.55 : t.opacity}
+              />
             ))}
+
+            {/* terrain: canyon rim, canyon floor, contours */}
+            {drawn && (
+              <>
+                <path
+                  d={path(road.map(project))}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  stroke="color-mix(in srgb, var(--color-help) 9%, transparent)"
+                  strokeWidth={4200 * k}
+                />
+                <path
+                  d={path(road.map(project))}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  stroke="color-mix(in srgb, var(--color-out) 11%, transparent)"
+                  strokeWidth={1500 * k}
+                />
+                {contours.map((c, i) => (
+                  <path
+                    key={i}
+                    d={path(c.map(project))}
+                    fill="none"
+                    strokeLinejoin="round"
+                    stroke="color-mix(in srgb, var(--color-help) 30%, var(--color-line-strong))"
+                    strokeOpacity={0.55}
+                    strokeWidth={1}
+                    strokeDasharray={i % 2 ? "0" : "6 5"}
+                  />
+                ))}
+              </>
+            )}
 
             {/* evacuation zones */}
             {zones.map((z) => {
@@ -254,8 +350,14 @@ export function HomeMap({
               const lx = Math.min(...xy.map((q) => q[0]));
               return (
                 <g key={z.id}>
-                  <path d={path(ring.map(P)) + "Z"} fill={`color-mix(in srgb, ${c} 7%, transparent)`} stroke={c}
-                    strokeOpacity={0.7} strokeWidth={1.5} strokeDasharray="7 5" />
+                  <path
+                    d={path(ring.map(P)) + "Z"}
+                    fill={`color-mix(in srgb, ${c} 7%, transparent)`}
+                    stroke={c}
+                    strokeOpacity={0.7}
+                    strokeWidth={1.5}
+                    strokeDasharray="7 5"
+                  />
                   <text x={lx - 8} y={ly + 4} fontSize={11} fontWeight={600} fill={c} textAnchor="end" style={halo}>
                     {zoneLabel(z)}
                     {z.status ? ` · ${String(z.status).toUpperCase()}` : ""}
@@ -265,24 +367,59 @@ export function HomeMap({
             })}
 
             {/* Oak Creek + SR 89A */}
-            <path d={path(creek.map(project))} fill="none" strokeLinecap="round" strokeLinejoin="round"
-              stroke="color-mix(in srgb, var(--color-vehicle) 55%, transparent)" strokeWidth={2} />
-            <path d={path(road.map(project))} fill="none" strokeLinecap="round" strokeLinejoin="round"
-              stroke="var(--color-line-strong)" strokeWidth={7} />
-            <path d={path(road.map(project))} fill="none" strokeLinecap="round" strokeLinejoin="round"
-              stroke="var(--color-panel)" strokeWidth={4} />
+            {drawn && (
+              <path
+                d={path(creek.map(project))}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                stroke="color-mix(in srgb, var(--color-vehicle) 55%, transparent)"
+                strokeWidth={2}
+              />
+            )}
+            <path
+              d={path(road.map(project))}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              stroke="var(--color-line-strong)"
+              strokeWidth={7}
+            />
+            <path
+              d={path(road.map(project))}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              stroke="var(--color-panel)"
+              strokeWidth={4}
+            />
             {closures.map((c) => {
               const line = (c.geometry as { coordinates?: LonLat[] })?.coordinates;
               return line?.length ? (
-                <path key={c.id} d={path(line.map(P))} fill="none" stroke="var(--color-fire)" strokeWidth={5}
-                  strokeLinecap="round" strokeDasharray="2 7" />
+                <path
+                  key={c.id}
+                  d={path(line.map(P))}
+                  fill="none"
+                  stroke="var(--color-fire)"
+                  strokeWidth={5}
+                  strokeLinecap="round"
+                  strokeDasharray="2 7"
+                />
               ) : null;
             })}
             {(() => {
               const [x, y] = P([-111.7429, 34.9205]);
               return (
-                <text x={x - 12} y={y} fontSize={10} fontWeight={700} letterSpacing="0.08em" fill="var(--color-muted)"
-                  textAnchor="end" style={halo}>
+                <text
+                  x={x - 12}
+                  y={y}
+                  fontSize={10}
+                  fontWeight={700}
+                  letterSpacing="0.08em"
+                  fill="var(--color-muted)"
+                  textAnchor="end"
+                  style={halo}
+                >
                   SR 89A
                 </text>
               );
@@ -295,7 +432,16 @@ export function HomeMap({
               const [x, y] = P(ll);
               return (
                 <g key={s.id}>
-                  <rect x={x - 5} y={y - 5} width={10} height={10} rx={2} fill="var(--color-sim)" stroke="var(--color-panel)" strokeWidth={1.5} />
+                  <rect
+                    x={x - 5}
+                    y={y - 5}
+                    width={10}
+                    height={10}
+                    rx={2}
+                    fill="var(--color-sim)"
+                    stroke="var(--color-panel)"
+                    strokeWidth={1.5}
+                  />
                   <text x={x + 9} y={y + 4} fontSize={11} fontWeight={600} fill="var(--color-sim)" style={halo}>
                     {String(s.name ?? "Shelter")}
                   </text>
@@ -310,13 +456,26 @@ export function HomeMap({
               return (
                 <g key={h.id} className="cursor-pointer" onClick={() => pick(h.id)}>
                   <circle cx={x} cy={y} r={DOT + 3} fill="transparent" />
-                  {isSel && <circle cx={x} cy={y} r={DOT_SELECTED + 5} fill="color-mix(in srgb, var(--color-accent) 22%, transparent)" />}
+                  {isSel && (
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={DOT_SELECTED + 5}
+                      fill="color-mix(in srgb, var(--color-accent) 22%, transparent)"
+                    />
+                  )}
                   <circle
                     cx={x}
                     cy={y}
                     r={isSel ? DOT_SELECTED : DOT}
                     fill={FILL[h.role ?? ""] ?? "var(--color-unknown)"}
-                    stroke={isSel ? "var(--color-accent)" : h.simulated === false ? "var(--color-vehicle)" : "var(--color-panel)"}
+                    stroke={
+                      isSel
+                        ? "var(--color-accent)"
+                        : h.simulated === false
+                          ? "var(--color-vehicle)"
+                          : "var(--color-panel)"
+                    }
                     strokeWidth={isSel ? 2.5 : h.simulated === false ? 2 : 1.25}
                   >
                     <title>{h.address}</title>
@@ -330,14 +489,19 @@ export function HomeMap({
               return (
                 <g key={p.name} pointerEvents="none">
                   <circle cx={x} cy={y} r={2.5} fill="var(--color-muted)" />
-                  <text x={x + 12} y={y + 4} fontSize={p.strong ? 13 : 11} fontWeight={p.strong ? 600 : 500}
-                    fill={p.strong ? "var(--color-ink)" : "var(--color-muted)"} style={halo}>
+                  <text
+                    x={x + 12}
+                    y={y + 4}
+                    fontSize={p.strong ? 13 : 11}
+                    fontWeight={p.strong ? 600 : 500}
+                    fill={p.strong ? "var(--color-ink)" : "var(--color-muted)"}
+                    style={halo}
+                  >
                     {p.name}
                   </text>
                 </g>
               );
             })}
-
           </>
         )}
       </svg>
@@ -351,29 +515,47 @@ export function HomeMap({
           </div>
         )}
       </div>
-      <div className="pointer-events-none absolute top-16 right-4 flex flex-col items-center text-muted" aria-hidden>
-        <svg viewBox="0 0 24 32" className="h-8 w-6">
-          <path d="M12 2 L18 22 L12 18 L6 22 Z" fill="var(--color-ink)" fillOpacity={0.75} />
-        </svg>
-        <span className="text-[10px] font-semibold">N</span>
-      </div>
 
-      {/* zoom */}
-      <div className="glass absolute top-4 right-4 flex overflow-hidden rounded-full! text-ink">
-        {[
-          { label: "Zoom in", text: "+", f: 1.6 },
-          { label: "Zoom out", text: "−", f: 1 / 1.6 },
-        ].map((b) => (
-          <button key={b.label} type="button" aria-label={b.label} title={b.label}
-            onClick={() => zoomAt(b.f, size.w / 2, size.h / 2)}
-            className="h-8 w-8 text-base leading-none hover:bg-ink/5">
-            {b.text}
+      {/* base map + zoom */}
+      {raster && (
+        <span className="pointer-events-none absolute right-4 bottom-[4.6rem] max-w-[22rem] text-right text-[9px] text-muted">
+          {raster.attribution}
+        </span>
+      )}
+      <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+        <div className="glass flex overflow-hidden rounded-full! text-ink">
+          {[
+            { label: "Zoom in", text: "+", f: 1.6 },
+            { label: "Zoom out", text: "−", f: 1 / 1.6 },
+          ].map((b) => (
+            <button
+              key={b.label}
+              type="button"
+              aria-label={b.label}
+              title={b.label}
+              onClick={() => zoomAt(b.f, size.w / 2, size.h / 2)}
+              className="h-8 w-8 text-base leading-none hover:bg-ink/5"
+            >
+              {b.text}
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-label="Reset view"
+            title="Reset view"
+            onClick={() => setView({ s: 1, px: 0, py: 0 })}
+            className="h-8 px-2.5 text-[11px] text-muted hover:bg-ink/5 hover:text-ink"
+          >
+            Reset
           </button>
-        ))}
-        <button type="button" aria-label="Reset view" title="Reset view" onClick={() => setView({ s: 1, px: 0, py: 0 })}
-          className="h-8 px-2.5 text-[11px] text-muted hover:bg-ink/5 hover:text-ink">
-          Reset
-        </button>
+        </div>
+        <BasemapSwitcher value={basemap} onChange={setBasemap} />
+        <div className="pointer-events-none mr-1 flex flex-col items-center text-muted" aria-hidden>
+          <svg viewBox="0 0 24 32" className="h-8 w-6">
+            <path d="M12 2 L18 22 L12 18 L6 22 Z" fill="var(--color-ink)" fillOpacity={0.75} />
+          </svg>
+          <span className="text-[10px] font-semibold">N</span>
+        </div>
       </div>
 
       {/* legend */}
