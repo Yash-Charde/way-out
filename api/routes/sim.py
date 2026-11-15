@@ -31,15 +31,18 @@ def _publish_fire_run(db) -> None:
 
 @router.post("/seed")
 async def seed(
-    scenario: str = Query(default="pocket-fire"),
-    homes: int = Query(default=200, ge=1, le=2000),
+    scenario: Literal["pocket-fire", "valley-fire"] = Query(
+        default="pocket-fire", description="pocket-fire = Oak Creek Canyon; valley-fire = Phoenix metro (~8,000 homes)"
+    ),
+    homes: int | None = Query(default=None, ge=1, le=20000, description="default: 200 canyon, 8,000 Phoenix"),
     seed: int = Query(default=42, description="random seed: same seed, same world"),
     census: Literal["none", "instant"] = Query(
         default="none", description="instant = answer every home from its persona, no calls"
     ),
     firstArrivalMin: float = Query(default=90, ge=5, description="minutes until the fire reaches the first home"),
 ) -> dict:
-    """Replace the simulated world: ~200 homes, 8 vehicles, 2 shelters, 2 zones. Real households stay."""
+    """Replace the simulated world. Canyon: ~200 homes, 8 vehicles, 2 shelters, 2 zones. Phoenix metro:
+    ~8,000 homes, 40 vehicles, 4 shelters, 13 zones. Real households stay."""
     async with world_lock:  # never while a solve is writing offers
         result = await sim_seed.seed(
             get_db(), scenario=scenario, homes=homes, rng_seed=seed, census=census, first_arrival_min=firstArrivalMin
@@ -50,12 +53,52 @@ async def seed(
 
 
 @router.post("/census")
-async def census() -> dict:
-    """Answer every simulated home that hasn't been reached, from its persona (skips the calls)."""
-    async with world_lock:
-        made = await sim_seed.instant_census(get_db())
-    request_replan()
-    return {"requests": made, "simulated": True}
+async def census(
+    perSecond: float = Query(
+        default=0, ge=0, le=2000, description="0 = everyone at once; >0 = that many homes a second, fire-first"
+    ),
+    zones: str | None = Query(default=None, description="comma-separated zone ids (default: every zone)"),
+) -> dict:
+    """Answer simulated homes that haven't been reached, from their personas (skips the calls).
+
+    With `perSecond`, it runs in the background in waves, homes the fire reaches first going first, so
+    the map lights up the way a real call-out would (for demos and the video)."""
+    zone_ids = [z for z in (zones or "").split(",") if z] or None
+    if perSecond <= 0:
+        async with world_lock:
+            made = await sim_seed.instant_census(get_db(), zone_ids=zone_ids)
+        request_replan()
+        return {"requests": made, "simulated": True}
+
+    async def waves() -> None:
+        db = get_db()
+        batch = max(1, int(perSecond / 2))  # a wave every 0.5 s
+        while True:
+            async with world_lock:
+                left = await db.households.count_documents(
+                    {"simulated": True, "reach": "not_called", **({"zoneId": {"$in": zone_ids}} if zone_ids else {})}
+                )
+                if not left:
+                    break
+                await sim_seed.instant_census(db, limit=batch, zone_ids=zone_ids)
+            request_replan()
+            await asyncio.sleep(0.5)
+
+    task = asyncio.create_task(waves())
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+    return {"started": True, "perSecond": perSecond, "zones": zone_ids, "simulated": True}
+
+
+@router.get("/scenario")
+async def scenario() -> dict:
+    """Which world is loaded, and the map box to frame it (the console fits its map to this)."""
+    from api.sim import data, valley, world
+
+    name = world.active()
+    sc = data.scenario(name)
+    box = valley.bounds(sc) if name == "valley-fire" else [[-111.835, 34.845], [-111.715, 35.02]]
+    return {"name": name, "title": sc.get("title", name), "bounds": box, "simulated": True}
 
 
 class StandIns(BaseModel):

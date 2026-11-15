@@ -1,0 +1,253 @@
+{
+ "name": "valley-fire",
+ "title": "North Valley Fire, Phoenix metro (SIMULATED scenario)",
+ "simulated": true,
+ "timezone": "America/Phoenix",
+ "note": "A simulated wind-driven desert wildfire that starts in the Tonto National Forest foothills north-east of Cave Creek and Carefree and is pushed south-west into the north and north-east Valley's wildland-urban edge. Zone outlines are APPROXIMATE boxes around real communities, not official evacuation zones. Household counts and every person are simulated. Ignition, wind and spread rate are our assumptions, not a forecast.",
+ "ignition": [
+  -111.8,
+  33.905
+ ],
+ "wind": {
+  "speedMps": 13.4,
+  "gustMps": 24.6,
+  "fromDeg": 45,
+  "note": "ASSUMPTION: a strong north-east wind (30 mph sustained) pushing the fire toward the Valley."
+ },
+ "bounds": [
+  [
+   -112.62,
+   33.22
+  ],
+  [
+   -111.38,
+   34.0
+  ]
+ ],
+ "defaultHomes": 8000,
+ "zones": [
+  {
+   "id": "zone_vf_cave_creek",
+   "name": "Cave Creek",
+   "county": "Maricopa",
+   "center": [
+    -111.951,
+    33.833
+   ],
+   "widthKm": 6.0,
+   "heightKm": 5.0,
+   "weight": 10
+  },
+  {
+   "id": "zone_vf_carefree",
+   "name": "Carefree",
+   "county": "Maricopa",
+   "center": [
+    -111.912,
+    33.822
+   ],
+   "widthKm": 4.0,
+   "heightKm": 4.0,
+   "weight": 8
+  },
+  {
+   "id": "zone_vf_desert_mtn",
+   "name": "North Scottsdale \u00b7 Desert Mountain",
+   "county": "Maricopa",
+   "center": [
+    -111.835,
+    33.795
+   ],
+   "widthKm": 8.0,
+   "heightKm": 6.0,
+   "weight": 14
+  },
+  {
+   "id": "zone_vf_troon",
+   "name": "North Scottsdale \u00b7 Troon / Pinnacle Peak",
+   "county": "Maricopa",
+   "center": [
+    -111.84,
+    33.722
+   ],
+   "widthKm": 8.0,
+   "heightKm": 5.0,
+   "weight": 12
+  },
+  {
+   "id": "zone_vf_dc_ranch",
+   "name": "McDowell foothills \u00b7 DC Ranch",
+   "county": "Maricopa",
+   "center": [
+    -111.86,
+    33.675
+   ],
+   "widthKm": 6.0,
+   "heightKm": 4.0,
+   "weight": 8
+  },
+  {
+   "id": "zone_vf_rio_verde",
+   "name": "Rio Verde",
+   "county": "Maricopa",
+   "center": [
+    -111.676,
+    33.722
+   ],
+   "widthKm": 5.0,
+   "heightKm": 4.0,
+   "weight": 4
+  },
+  {
+   "id": "zone_vf_fountain",
+   "name": "Fountain Hills",
+   "county": "Maricopa",
+   "center": [
+    -111.718,
+    33.608
+   ],
+   "widthKm": 7.0,
+   "heightKm": 6.0,
+   "weight": 10
+  },
+  {
+   "id": "zone_vf_desert_hills",
+   "name": "Desert Hills",
+   "county": "Maricopa",
+   "center": [
+    -112.06,
+    33.845
+   ],
+   "widthKm": 7.0,
+   "heightKm": 5.0,
+   "weight": 6
+  },
+  {
+   "id": "zone_vf_new_river",
+   "name": "New River",
+   "county": "Maricopa",
+   "center": [
+    -112.09,
+    33.915
+   ],
+   "widthKm": 7.0,
+   "heightKm": 6.0,
+   "weight": 5
+  },
+  {
+   "id": "zone_vf_anthem",
+   "name": "Anthem / Daisy Mountain",
+   "county": "Maricopa",
+   "center": [
+    -112.14,
+    33.862
+   ],
+   "widthKm": 6.0,
+   "heightKm": 5.0,
+   "weight": 11
+  },
+  {
+   "id": "zone_vf_ahwatukee",
+   "name": "Ahwatukee Foothills \u00b7 South Mountain",
+   "county": "Maricopa",
+   "center": [
+    -112.01,
+    33.318
+   ],
+   "widthKm": 9.0,
+   "heightKm": 4.0,
+   "weight": 8
+  },
+  {
+   "id": "zone_vf_verrado",
+   "name": "White Tank foothills \u00b7 Verrado",
+   "county": "Maricopa",
+   "center": [
+    -112.47,
+    33.47
+   ],
+   "widthKm": 6.0,
+   "heightKm": 5.0,
+   "weight": 5
+  },
+  {
+   "id": "zone_vf_gold_canyon",
+   "name": "Gold Canyon \u00b7 Superstition foothills",
+   "county": "Maricopa",
+   "center": [
+    -111.43,
+    33.375
+   ],
+   "widthKm": 7.0,
+   "heightKm": 4.0,
+   "weight": 5
+  }
+ ],
+ "shelters": [
+  {
+   "_id": "sh_vf_north_phoenix",
+   "name": "North Phoenix shelter (simulated)",
+   "location": [
+    -112.074,
+    33.64
+   ],
+   "capacity": 600
+  },
+  {
+   "_id": "sh_vf_scottsdale",
+   "name": "Scottsdale shelter (simulated)",
+   "location": [
+    -111.905,
+    33.618
+   ],
+   "capacity": 500
+  },
+  {
+   "_id": "sh_vf_east_valley",
+   "name": "East Valley shelter (simulated)",
+   "location": [
+    -111.79,
+    33.455
+   ],
+   "capacity": 400
+  },
+  {
+   "_id": "sh_vf_west_valley",
+   "name": "West Valley shelter (simulated)",
+   "location": [
+    -112.3,
+    33.54
+   ],
+   "capacity": 300
+  }
+ ],
+ "staging": {
+  "cave_creek": [
+   -111.985,
+   33.79
+  ],
+  "scottsdale_airpark": [
+   -111.91,
+   33.625
+  ],
+  "anthem": [
+   -112.125,
+   33.845
+  ],
+  "deer_valley": [
+   -112.08,
+   33.69
+  ],
+  "fountain_hills": [
+   -111.72,
+   33.595
+  ],
+  "north_scottsdale": [
+   -111.89,
+   33.7
+  ]
+ },
+ "replay": {
+  "note": "Compressed replay for demos: SET as the fire touches a zone, GO when it reaches the zone's first home (api/hazard/zones.py). Simulated."
+ }
+}

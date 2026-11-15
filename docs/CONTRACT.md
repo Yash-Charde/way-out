@@ -158,8 +158,9 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | POST | `/zones/{id}/drill/watch` | `{on}` → arm/disarm the TinyFish watcher |
 | POST | `/zones/county-check` | one read-only TinyFish fetch of `COUNTY_PAGE_URL`, logged (Bearer) |
 | POST | `/zones/{id}/status` | `{status, sourceUrl}` (TinyFish webhook) → starts dialing at `set` |
-| POST | `/sim/seed` | `?scenario=pocket-fire&homes=200&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world: 200 homes, 8 vehicles, 2 shelters, 2 zones. Real households stay |
-| POST | `/sim/census` | answer every unreached simulated home from its persona (no calls) → `{requests}` |
+| POST | `/sim/seed` | `?scenario=pocket-fire\|valley-fire&homes=&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world. `pocket-fire` (Oak Creek Canyon): 200 homes, 8 vehicles, 2 shelters, 2 zones. `valley-fire` (Phoenix metro, the web's default): ~8,000 homes, 40 vehicles, 4 shelters, 13 zones. Real households stay |
+| POST | `/sim/census` | `?perSecond=0&zones=a,b` answer unreached simulated homes from their personas (no calls) → `{requests}`. `perSecond > 0`: background waves, fire-first → `{started: true}` |
+| GET | `/sim/scenario` | → `{name, title, bounds: [[w,s],[e,n]]}` the loaded world and the box the console frames *(added: Phoenix metro)* |
 | POST / GET | `/sim/control` | `{standIns?: {voice, drivers, approval, fireZones}: bool, speedup?: 1–600}` (partial updates) → `{standIns, speedup}`. `drivers`: simulated vehicles accept after 6 s and drive their runs; `speedup`: they drive and board N× faster |
 | GET | `/system/metrics` | → `{live: {calls, latencyMs: {realPhone, standIns}, interpreter, fallbacks, acks}, evals: data/eval-results.json \| null, dispatch: data/sim-results.json \| null, census: {reach, openRequests, duplicatesMerged}, audit: [..40]}` |
 | GET | `/health` | → `{ok, env, version, gitSha}` |

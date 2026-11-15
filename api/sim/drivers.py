@@ -61,6 +61,8 @@ def step_toward(road: Road, here: tuple[float, float], there: tuple[float, float
     → (new position, reached?) or None when a closure blocks the way."""
     if meters(here, there) <= max(AT_DOOR_M, 1e-9):
         return there, True
+    if hasattr(road, "step_toward"):  # the Phoenix street grid moves along its own L-shaped paths
+        return road.step_toward(here, there, step_m)
     ch, ct = road.project(here)[0], road.project(there)[0]
     if road.blocked(ch, ct):
         return None

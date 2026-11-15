@@ -24,7 +24,9 @@ from api import assignments as asg
 from api import requests as rq
 from api.core.util import aware, new_id, utcnow
 from api.dispatch import greedy
+from api.sim import world
 from api.sim.geo import Road
+from api.sim.grid import Grid
 
 log = logging.getLogger(__name__)
 
@@ -53,8 +55,8 @@ def _minutes_until(dt: datetime | None, now: datetime) -> float | None:
     return None if dt is None else (aware(dt) - now).total_seconds() / 60
 
 
-async def road_with_closures(db: AsyncIOMotorDatabase) -> Road:
-    road = Road()
+async def road_with_closures(db: AsyncIOMotorDatabase) -> Road | Grid:
+    road = world.network()  # SR 89A (canyon) or the Phoenix street grid (valley-fire)
     async for c in db.roadClosures.find({}):
         coords = (c.get("geometry") or {}).get("coordinates") or []
         if len(coords) >= 2:

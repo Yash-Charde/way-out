@@ -116,6 +116,7 @@ export type MapViewProps = {
   padding?: Padding; // keeps the canyon clear of the page's panels
   layersClassName?: string; // where the Map / Terrain / Topo / Satellite switch sits
   fire?: FireView | null; // simulated fire replay (GET /hazards/fire)
+  bounds?: [[number, number], [number, number]]; // the scenario's box (GET /sim/scenario); default: the canyon
 };
 
 export default function MapView(p: MapViewProps) {
@@ -450,8 +451,8 @@ export default function MapView(p: MapViewProps) {
     <>
     <MapGL
       // A new basemap style drops the deck.gl overlay, so a theme switch (or the offline fallback) rebuilds the map.
-      key={`${styleKey}-${failed}`}
-      initialViewState={{ bounds: CANYON_BOUNDS, fitBoundsOptions: { padding: p.padding ?? CONSOLE_PADDING } }}
+      key={`${styleKey}-${failed}-${JSON.stringify(p.bounds ?? CANYON_BOUNDS)}`}
+      initialViewState={{ bounds: p.bounds ?? CANYON_BOUNDS, fitBoundsOptions: { padding: p.padding ?? CONSOLE_PADDING } }}
       mapStyle={style}
       style={{ position: "absolute", inset: 0 }}
       onLoad={(e) => {

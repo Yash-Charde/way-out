@@ -70,10 +70,14 @@ def _load(name: str) -> Any | None:
 
 @lru_cache
 def scenario(name: str = "pocket-fire") -> dict[str, Any]:
-    data = _load("scenario.json")
-    if not data or data.get("name") != name:
-        return {**FALLBACK_SCENARIO, "name": name}
-    return data
+    """data/scenario.json (the Pocket Fire) or data/scenario-<name>.json (e.g. valley-fire)."""
+    for file in ("scenario.json", f"scenario-{name}.json"):
+        data = _load(file) if (DATA_DIR / file).exists() else None
+        if data and data.get("name") == name:
+            return data
+    if name == "valley-fire":
+        log.warning("data/scenario-valley-fire.json missing; the Phoenix scenario needs it")
+    return {**FALLBACK_SCENARIO, "name": name}
 
 
 @lru_cache
