@@ -123,3 +123,35 @@ async def test_homes_form_one_area_west_of_the_mountains(db):
     # every zone has homes: one continuous district, no empty tiles
     per_zone = {z["id"]: await db.households.count_documents({"zoneId": z["id"]}) for z in sc["zones"]}
     assert min(per_zone.values()) > 50
+
+
+async def test_try_it_with_a_typed_address_moves_the_house_there(client, db):
+    await seed.seed(db, scenario="scottsdale-fire", homes=300, rng_seed=4)
+    hh = await db.households.find_one({})
+    lon, lat = hh["location"]["coordinates"]
+    near = {
+        "address": "9500 E Via Linda, Scottsdale, AZ 85258",
+        "lon": round(lon + 0.004, 6),
+        "lat": round(lat + 0.003, 6),
+    }
+    r = await client.post("/vehicles/volunteer", json={"householdId": hh["_id"], "phone": "+14805550199", **near})
+    assert r.status_code == 200
+    moved = await db.households.find_one({"_id": hh["_id"]})
+    assert moved["address"] == near["address"] and moved["location"]["coordinates"] == [near["lon"], near["lat"]]
+    v = await db.vehicles.find_one({"_id": r.json()["vehicleId"]})
+    assert v["location"]["coordinates"] == [near["lon"], near["lat"]]
+    far = {**near, "lon": lon + 0.2}  # ~18 km away: outside the warning zone
+    r = await client.post("/vehicles/volunteer", json={"householdId": hh["_id"], "phone": "+14805550199", **far})
+    assert r.status_code == 422
+
+
+def test_addresses_follow_the_county_grid():
+    import random
+
+    from api.sim.metro import _address
+
+    rng = random.Random(1)
+    west, east = _address(rng, (-111.926, 33.66)), _address(rng, (-111.87, 33.66))
+    assert west.startswith(("7200 ", "7201 ")) and "Scottsdale, AZ" in west and west.endswith("(simulated)")
+    assert int(east.split()[0]) > int(west.split()[0])  # numbers grow to the east
+    assert west.split(" E ")[1].split(",")[0] == east.split(" E ")[1].split(",")[0]  # same row, same street

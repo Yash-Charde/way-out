@@ -8,12 +8,12 @@ import hashlib
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api import audit
 from api.core.db import get_db
 from api.core.util import new_id, utcnow
-from api.routes._util import out
+from api.routes._util import out, place_visitor
 from api.sim import world
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
@@ -190,6 +190,9 @@ class VolunteerBody(BaseModel):
     householdId: str
     phone: str  # E.164, +1XXXXXXXXXX
     name: str | None = None
+    address: str | None = Field(default=None, max_length=160)  # the visitor's real address (optional)
+    lon: float | None = None
+    lat: float | None = None
 
 
 @router.post("/volunteer")
@@ -204,6 +207,8 @@ async def volunteer(body: VolunteerBody) -> dict:
     hh = await db.households.find_one({"_id": body.householdId})
     if hh is None or not (hh.get("location") or {}).get("coordinates"):
         raise HTTPException(404, "household not found")
+    typed = bool(body.address)
+    hh = await place_visitor(db, hh, body.address, body.lon, body.lat)
     phone_key = hashlib.sha256(body.phone.encode()).hexdigest()[:12]
     now = utcnow()
     name = (body.name or "").strip()[:30] or f"You (…{body.phone[-4:]})"
@@ -234,5 +239,6 @@ async def volunteer(body: VolunteerBody) -> dict:
         },
         upsert=True,
     )
-    await audit.log(db, "volunteer_driver", f"{name} can drive from {hh.get('address', hh['_id'])}", vehicleId=vid)
+    where = "their own address" if typed else hh.get("address", hh["_id"])
+    await audit.log(db, "volunteer_driver", f"{name} can drive from {where}", vehicleId=vid)
     return {"vehicleId": vid, "driverName": name, "address": hh.get("address"), "driverUrl": f"/driver?v={vid}"}

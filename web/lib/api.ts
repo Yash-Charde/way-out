@@ -34,6 +34,9 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 type Doc = { id: string } & Record<string, unknown>;
 
 /** GET /hazards/fire. Scenario input, not a forecast. */
+/** A typed address, geocoded: what Try it sends with the call. */
+export type Place = { address: string; lon: number; lat: number };
+
 /** GET /sim/evacuation. Minutes count from the warning (when the world was seeded). */
 export type Evacuation = {
   t0: string;
@@ -151,12 +154,18 @@ export const api = {
   // system page
   systemMetrics: () => call<SystemMetrics>("GET", "/system/metrics"),
   // kiosk: this house becomes the visitor's phone, then we call it
-  kiosk: (householdId: string, phone: string) =>
-    call<{ callId: string; householdId: string; address: string }>("POST", "/calls/kiosk", { householdId, phone }),
-  volunteer: (householdId: string, phone: string) =>
+  // `place`: the visitor's own address (geocoded in the browser); the picked house moves there
+  kiosk: (householdId: string, phone: string, place?: Place | null) =>
+    call<{ callId: string; householdId: string; address: string }>("POST", "/calls/kiosk", {
+      householdId,
+      phone,
+      ...(place ?? {}),
+    }),
+  volunteer: (householdId: string, phone: string, place?: Place | null) =>
     call<{ vehicleId: string; driverName: string; address: string; driverUrl: string }>("POST", "/vehicles/volunteer", {
       householdId,
       phone,
+      ...(place ?? {}),
     }),
   // call floor
   calls: (limit = 100) => call<CallSummary[]>("GET", `/calls?limit=${limit}`),

@@ -7,9 +7,18 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "sw
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Way Out",
+  title: { default: "Way Out", template: "%s · Way Out" },
   description: "Every home called. Every rider matched. Nobody told help is coming until a driver says yes.",
   manifest: "/manifest.webmanifest",
+  applicationName: "Way Out",
+  openGraph: {
+    title: "Way Out: everyone gets a way out of a wildfire",
+    description:
+      "Calls every home in the evacuation zone at once, finds who can't leave on their own, and dispatches responders and neighbors with a seat before the fire arrives.",
+    type: "website",
+    siteName: "Way Out",
+  },
+  twitter: { card: "summary_large_image", title: "Way Out", description: "Everyone gets a way out." },
 };
 
 export const viewport: Viewport = {

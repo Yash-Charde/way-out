@@ -203,8 +203,22 @@ def zone_polygon(z: dict[str, Any]) -> list[list[float]]:
     return [[w, s], [e, s], [e, n], [w, n], [w, s]]
 
 
-def _address(rng: random.Random) -> str:
-    return f"{rng.randint(70, 140) * 100 + rng.randint(1, 99)} E {rng.choice(STREETS)}, Scottsdale, AZ (simulated)"
+# Maricopa County address grid: house numbers count 800 a mile east of Central Ave, so Scottsdale Rd is
+# 7200 E. A home's number follows from where it is, and every home on one east-west row is on the same
+# street (names cycle through STREETS row by row). Real-looking and consistent; still simulated.
+SCOTTSDALE_RD_LON = -111.926
+MILE_DEG_LON = 1609.34 / (111_320 * math.cos(math.radians(33.66)))
+ROW_DEG_LAT = 201 / 111_320  # the street grid the homes snap to
+
+
+def _address(rng: random.Random, loc: tuple[float, float] | None = None) -> str:
+    if loc is None:
+        return f"{rng.randint(70, 140) * 100 + rng.randint(1, 99)} E {rng.choice(STREETS)}, Scottsdale, AZ (simulated)"
+    lon, lat = loc
+    number = 7200 + round((lon - SCOTTSDALE_RD_LON) / MILE_DEG_LON * 800)
+    number = number - number % 2 + (1 if rng.random() < 0.5 else 0)  # odd on the south side, even on the north
+    street = STREETS[round(lat / ROW_DEG_LAT) % len(STREETS)]
+    return f"{max(100, number)} E {street}, Scottsdale, AZ 85260 (simulated)"
 
 
 def _vehicle(_id: str, kind: str, name: str, loc: tuple[float, float], now: datetime) -> dict[str, Any]:
@@ -292,7 +306,7 @@ async def seed(
         docs.append(
             {
                 "_id": base._free_id(f"hh_sim_{i:05d}", taken),
-                "address": _address(rng),
+                "address": _address(rng, loc),
                 "location": base._point(loc),
                 "zoneId": zone_of(sc, loc)["id"],
                 "phone": f"+1555{i:07d}",  # fictional

@@ -12,14 +12,14 @@
  * - Green trails: households driving out on their own.
  * - Counters are counted from the same timelines, so they can't disagree with the map.
  */
-import { PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { Layer } from "@deck.gl/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
 import { api, type Evacuation } from "@/lib/api";
 import { SimBadge } from "@/components/Shell";
+import { countsAt, evacLayers, prepare } from "@/lib/evac";
 
-type P3 = [number, number, number];
+
 
 /** The map reads the evacuation layers from here, so a frame re-renders the map only, not the console. */
 export const useEvacLayers = create<{ layers: Layer[] | null; set: (l: Layer[] | null) => void }>((set) => ({
@@ -28,34 +28,6 @@ export const useEvacLayers = create<{ layers: Layer[] | null; set: (l: Layer[] |
 }));
 
 const SPEEDS = [2, 5, 10]; // scenario minutes per real second
-const TRAIL_MIN = 6; // vehicle trail length
-const SELF_TRAIL_MIN = 0.8; // short streaks: thousands of cars at once
-
-function at(path: P3[], m: number): [number, number] {
-  if (m <= path[0][2]) return [path[0][0], path[0][1]];
-  const last = path[path.length - 1];
-  if (m >= last[2]) return [last[0], last[1]];
-  let lo = 0;
-  let hi = path.length - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (path[mid][2] <= m) lo = mid;
-    else hi = mid;
-  }
-  const a = path[lo];
-  const b = path[hi];
-  const f = b[2] > a[2] ? (m - a[2]) / (b[2] - a[2]) : 1;
-  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
-}
-
-/** The stretch of `path` driven between minutes m0 and m1 (corners included). */
-function slice(path: P3[], m0: number, m1: number): [number, number][] {
-  const out: [number, number][] = [at(path, m0)];
-  for (const p of path) if (p[2] > m0 && p[2] < m1) out.push([p[0], p[1]]);
-  out.push(at(path, m1));
-  return out;
-}
-
 function hm(min: number): string {
   const m = Math.max(0, Math.round(min));
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
@@ -89,17 +61,7 @@ export function EvacuationPlayer({ onClose, className = "" }: { onClose: () => v
     };
   }, [setLayers]);
 
-  // Paths in a shape the frame loop can use without re-parsing.
-  const prep = useMemo(() => {
-    if (!data) return null;
-    const self = data.selfEvac.map(([lon, lat, leave, flat, fire]) => {
-      const path: P3[] = [[lon, lat, leave]];
-      for (let i = 0; i + 2 < flat.length; i += 3) path.push([flat[i], flat[i + 1], flat[i + 2]]);
-      return { path, leave, arrive: path[path.length - 1][2], fire };
-    });
-    const vehicles = data.vehicles.map((v) => ({ ...v, neighbor: v.kind === "neighbor" }));
-    return { self, vehicles };
-  }, [data]);
+  const prep = useMemo(() => (data ? prepare(data) : null), [data]);
 
   // Clock: advance `speed` scenario minutes per real second while playing.
   useEffect(() => {
@@ -122,139 +84,11 @@ export function EvacuationPlayer({ onClose, className = "" }: { onClose: () => v
   }, [playing, speed, data]);
 
   // Counts at this minute, from the same timelines the map draws.
-  const counts = useMemo(() => {
-    if (!data || !prep) return null;
-    const m = minute;
-    let waiting = 0,
-      inVehicle = 0,
-      ridersSafe = 0,
-      lateRiders = 0;
-    for (const [, , pick, drop, , fire] of data.riders) {
-      // The fire got to their home before the pickup (stays counted after a late pickup too).
-      if (fire != null && fire <= m && (pick == null || pick > fire)) lateRiders++;
-      if (pick == null || pick > m) waiting++;
-      else if (drop == null || drop > m) inVehicle++;
-      else ridersSafe++;
-    }
-    let driving = 0,
-      selfSafe = 0;
-    for (const s of prep.self) {
-      if (s.arrive <= m) selfSafe++;
-      else if (s.leave <= m) driving++;
-    }
-    const stayedHit = data.stayed.filter((s) => s[2] != null && s[2] <= m).length;
-    const canLeave = data.riders.length + prep.self.length;
-    return { waiting, inVehicle, ridersSafe, lateRiders, driving, selfSafe, safe: ridersSafe + selfSafe, canLeave, stayedHit };
-  }, [data, prep, minute]);
+  const counts = useMemo(() => (data && prep ? countsAt(data, prep, minute) : null), [data, prep, minute]);
 
   // Layers for this minute.
   useEffect(() => {
-    if (!data || !prep) return;
-    const m = minute;
-    const frame = data.fire[Math.min(data.fire.length - 1, Math.max(0, Math.floor(m / 5)))];
-    const movers: { path: [number, number][] }[] = [];
-    const parked: [number, number][] = [];
-    for (const s of prep.self) {
-      if (m < s.leave) parked.push([s.path[0][0], s.path[0][1]]);
-      else if (m < s.arrive) movers.push({ path: slice(s.path, Math.max(s.leave, m - SELF_TRAIL_MIN), m) });
-    }
-    const waiting = data.riders.filter((r) => r[2] == null || r[2] > m);
-    const vehicles = prep.vehicles.map((v) => {
-      let load = 0;
-      for (const [t, n] of v.loads) if (t <= m) load = n;
-      return {
-        pos: at(v.path, m),
-        trail: slice(v.path, Math.max(v.path[0][2], m - TRAIL_MIN), m),
-        load,
-        neighbor: v.neighbor,
-        name: v.name,
-      };
-    });
-    const layers: Layer[] = [
-      new PolygonLayer<{ ring: [number, number][] }>({
-        id: "evac-fire",
-        data: frame?.ring?.length ? [{ ring: frame.ring }] : [],
-        getPolygon: (d) => d.ring,
-        getFillColor: [255, 92, 40, 110],
-        getLineColor: [255, 140, 60, 230],
-        lineWidthMinPixels: 2,
-        stroked: true,
-        filled: true,
-      }),
-      new ScatterplotLayer<[number, number]>({
-        id: "evac-parked",
-        data: parked,
-        getPosition: (d) => d,
-        getRadius: 1.6,
-        radiusUnits: "pixels",
-        getFillColor: [148, 163, 184, 140],
-      }),
-      new ScatterplotLayer<[number, number, number, number, number, number | null][][number]>({
-        id: "evac-stayed",
-        data: [...data.stayed, ...data.unreached],
-        getPosition: (d) => [d[0], d[1]],
-        getRadius: 1.8,
-        radiusUnits: "pixels",
-        getFillColor: (d) => (d[2] != null && d[2] <= m ? [120, 20, 20, 220] : [100, 116, 139, 160]),
-        updateTriggers: { getFillColor: Math.floor(m) },
-      }),
-      new PathLayer<{ path: [number, number][] }>({
-        id: "evac-self",
-        data: movers,
-        getPath: (d) => d.path,
-        getColor: [52, 211, 153, 170],
-        getWidth: 1.5,
-        widthUnits: "pixels",
-        capRounded: true,
-      }),
-      new ScatterplotLayer<Evacuation["riders"][number]>({
-        id: "evac-waiting",
-        data: waiting,
-        getPosition: (d) => [d[0], d[1]],
-        getRadius: 3.2,
-        radiusUnits: "pixels",
-        getFillColor: (d) => (d[5] != null && d[5] <= m ? [127, 29, 29, 255] : [244, 63, 94, 235]),
-        getLineColor: [255, 255, 255, 160],
-        lineWidthMinPixels: 0.5,
-        stroked: true,
-        updateTriggers: { getFillColor: Math.floor(m) },
-      }),
-      new PathLayer<(typeof vehicles)[number]>({
-        id: "evac-vehicle-trails",
-        data: vehicles,
-        getPath: (d) => d.trail,
-        getColor: (d) => (d.neighbor ? [251, 146, 60, 230] : [241, 245, 249, 230]),
-        getWidth: 3,
-        widthUnits: "pixels",
-        capRounded: true,
-        jointRounded: true,
-      }),
-      new ScatterplotLayer<(typeof vehicles)[number]>({
-        id: "evac-vehicles",
-        data: vehicles,
-        getPosition: (d) => d.pos,
-        getRadius: (d) => (d.load > 0 ? 5.5 : 4),
-        radiusUnits: "pixels",
-        getFillColor: (d) => (d.neighbor ? [251, 146, 60, 255] : [241, 245, 249, 255]),
-        getLineColor: [15, 23, 42, 255],
-        lineWidthMinPixels: 1.5,
-        stroked: true,
-      }),
-      new TextLayer<(typeof vehicles)[number]>({
-        id: "evac-loads",
-        data: vehicles.filter((v) => v.load > 0),
-        getPosition: (d) => d.pos,
-        getText: (d) => String(d.load),
-        getSize: 11,
-        getColor: [255, 255, 255, 255],
-        getPixelOffset: [10, -10],
-        fontWeight: 700,
-        outlineWidth: 2,
-        outlineColor: [15, 23, 42, 255],
-        fontSettings: { sdf: true },
-      }),
-    ];
-    setLayers(layers);
+    if (data && prep) setLayers(evacLayers(data, prep, minute));
   }, [data, prep, minute, setLayers]);
 
   const restart = useCallback(() => {

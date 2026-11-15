@@ -1,455 +1,292 @@
-"use client";
-
 /**
- * Try it: 1) enter your phone number, 2) tap a house, 3) choose who you are there:
- *   - "I need help getting out": Way Out calls you as that resident (the real agent; the transcript and
- *     record fill in here as you talk);
- *   - "I can drive": a volunteer car is parked at that house and you get pickups on the driver screen.
- * The map is the lightweight house picker (HomeMap: an SVG map of the canyon), not the console map.
+ * Landing page: what Way Out is, who it's for, how it works, proof, and the way in (Try it / console).
+ * The hero is the live simulation itself (HeroMap); everything else is static and fast.
  */
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { SimBadge } from "@/components/Shell";
-import { AppHeader, Arrow } from "@/components/ui";
-import { ApiError, api, type HouseholdRecord } from "@/lib/api";
-import { useLive } from "@/lib/live";
-import { recordRows } from "./calls/format";
-import { HomeMap, type Home } from "./HomeMap";
+import { Arrow } from "@/components/ui";
+import { Hero } from "./landing/Hero";
+import { Section, SiteFooter, SiteHeader } from "./landing/Site";
 
-type Turn = { callId: string; speaker: "agent" | "resident"; text: string; at?: string };
+export const metadata: Metadata = {
+  title: { absolute: "Way Out: everyone gets a way out of a wildfire" },
+  description:
+    "Way Out calls every home in an evacuation zone at once, finds the people who can't leave on their own, and dispatches responders and neighbors with a seat to them before the fire arrives.",
+};
 
-function Step({ n, done, active, children }: { n: number; done: boolean; active: boolean; children: React.ReactNode }) {
+const PROBLEM = [
+  {
+    figure: "3,624",
+    text: "calls to the Los Angeles Fire Department in 24 hours as the January 2025 fires began, against a normal day of just under 1,500.",
+    source: "LAFD Chief Kristin Crowley, press conference, Jan 8, 2025",
+  },
+  {
+    figure: "59%",
+    text: "of the people on Harris County's registry of residents who need help were reached by phone after Hurricane Beryl (605 of 1,030). Even with a list, calling one by one reaches only some.",
+    source: "Domestic Preparedness Journal, 2024",
+  },
+  {
+    figure: "1 in 8",
+    text: "residents of Oak Creek Canyon, Arizona live with an ambulatory disability, and half are 65 or older. The Pocket Fire evacuated the canyon in June 2026.",
+    source: "U.S. Census Bureau, ACS 2019–2023, tract 16.02",
+  },
+];
+
+const STEPS = [
+  {
+    title: "Call every home at once",
+    body: "The moment a zone goes to SET, an AI voice agent calls every household in parallel, in English or Spanish. It asks who's home, who can't walk out, and whether they have a car.",
+    icon: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2",
+  },
+  {
+    title: "Build the census",
+    body: "Answers become a live map: who needs a ride (and what kind), who can drive and help, who already left, and who never answered (they go on the door-knock list).",
+    icon: "M4 19V5m0 14h16M8 15l3-4 3 2 4-6",
+  },
+  {
+    title: "Plan the rescue",
+    body: "A batched matcher pairs riders with vehicles every few seconds: deadlines from the fire model, seats and wheelchair spaces per trip, and wheelchair and stretcher riders first.",
+    icon: "M4 6h7v5H4zM13 13h7v5h-7zM11 8.5h4.5V13",
+  },
+  {
+    title: "Drivers accept, then we call back",
+    body: "A dispatcher approves; a driver accepts on their phone. Only then does the resident hear \"a wheelchair van is 7 minutes away, the driver is Luis.\"",
+    icon: "M5 12.5l4.5 4.5L19 7.5",
+  },
+  {
+    title: "Everyone out before the fire",
+    body: "Vehicles drive their runs to shelters outside the zone, re-routing around closures. The console shows who is waiting, who is aboard, and who is safe.",
+    icon: "M4 12h13m0 0-4-4m4 4-4 4M20 5v14",
+  },
+];
+
+const SCREENS = [
+  { href: "/try", title: "Try it", body: "Enter your phone number and your address, then take the call as a resident or join as a driver." },
+  { href: "/console", title: "Dispatch console", body: "The live map: requests by deadline, the plan to approve, the fleet, and Play evacuation." },
+  { href: "/calls", title: "Call floor", body: "Every call in progress, its transcript streaming in, and the household record filling as people talk." },
+  { href: "/driver", title: "Driver app", body: "Offer with a countdown, accept, your run in order, seats this trip, and a one-hand SOS." },
+  { href: "/system", title: "System & proof", body: "Latency, the honesty rate of the voice agent, and dispatch against today's first-come baseline." },
+  { href: "/drill", title: "Drill page", body: "A clearly labeled test zone page that our TinyFish agent reads the way it reads county pages." },
+];
+
+const TECH = [
+  ["MongoDB Atlas", "one database; change streams drive every live screen"],
+  ["Cartesia", "voice: listening and speaking on real phone calls"],
+  ["Google Gemini", "understands each answer and fills the record"],
+  ["Anthropic Claude", "optional fallback interpreter and honesty judge"],
+  ["TinyFish", "watches county evacuation pages for SET and GO"],
+  ["Tiger Data", "fire detections in a TimescaleDB hypertable"],
+  ["Vultr", "the API, three environments behind Caddy"],
+  ["Vercel", "the web app, one deploy per branch"],
+  ["MapLibre + deck.gl", "the maps, open data from OpenStreetMap"],
+];
+
+const FAQ = [
+  [
+    "Does the AI ever promise that help is coming?",
+    "No. Ride status, ETAs and driver names come only from fixed templates, filled from the database after a driver accepts. Every line the agent says passes an honesty check first.",
+  ],
+  [
+    "What happens to people who don't answer?",
+    "The agent retries after 2 and 5 minutes, sends a text, and then flags the home for a door check, so crews on the ground know where nobody has answered.",
+  ],
+  [
+    "Who are the drivers?",
+    "Paratransit and agency vans, buses, ambulances, and neighbors who told the call they can drive and have a free seat. Everyone accepts each pickup on their phone; nobody is assigned without saying yes.",
+  ],
+  [
+    "Is the data real?",
+    "The fire, homes and people in this demo are simulated, and labeled SIM everywhere. Calls to your own phone in Try it are real. The scenario numbers follow public Census rates and published response figures (see About).",
+  ],
+];
+
+export default function Landing() {
   return (
-    <li className="flex items-center gap-3">
-      <span
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-colors ${
-          done
-            ? "bg-out text-white"
-            : active
-              ? "bg-accent text-white shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]"
-              : "border border-line text-muted"
-        }`}
-      >
-        {done ? (
-          <svg
-            viewBox="0 0 24 24"
-            className="h-3.5 w-3.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            aria-hidden
-          >
-            <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        ) : (
-          n
-        )}
-      </span>
-      <span className={`text-sm ${active ? "font-medium text-ink" : "text-muted"}`}>{children}</span>
-    </li>
-  );
-}
+    <>
+      <SiteHeader />
+      <main id="main">
+        <Hero />
 
-export default function Kiosk() {
-  const connect = useLive((s) => s.connect);
-  useEffect(() => connect(), [connect]);
-  const households = useLive((s) => s.households);
-  const liveTurns = useLive((s) => s.turns);
-  const liveZones = useLive((s) => s.zones);
-  const [place, setPlace] = useState("Oak Creek Canyon");
-  useEffect(() => {
-    api
-      .scenario()
-      .then((s) => setPlace(s.name === "scottsdale-fire" ? "North Scottsdale" : "Oak Creek Canyon"))
-      .catch(() => undefined);
-  }, []);
+        <Section
+          eyebrow="The problem"
+          title={
+            <>
+              The people who need help most
+              <br className="hidden sm:block" /> are the last to get it.
+            </>
+          }
+          lead="An evacuation order reaches everyone at once. A van, a lift and two crew members reach one home at a time. Dispatch has to know who needs them, and it usually finds out by phone, one call at a time, while the lines are jammed."
+        >
+          <div className="grid gap-4 md:grid-cols-3">
+            {PROBLEM.map((p) => (
+              <figure key={p.figure} className="card p-6">
+                <div className="display text-[2.6rem] text-fire">{p.figure}</div>
+                <blockquote className="mt-3 text-[15px] leading-relaxed text-ink">{p.text}</blockquote>
+                <figcaption className="mt-4 text-xs text-muted">{p.source}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </Section>
 
-  // Map context: zone outlines, shelters, closures (same source as the console). Live zone status wins.
-  type Doc = { id: string } & Record<string, unknown>;
-  const [statics, setStatics] = useState<{ zones: Doc[]; shelters: Doc[]; closures: Doc[] }>({
-    zones: [],
-    shelters: [],
-    closures: [],
-  });
-  useEffect(() => {
-    api
-      .hazards()
-      .then((h) => setStatics({ zones: h.zones ?? [], shelters: h.shelters ?? [], closures: h.closures }))
-      .catch(() => undefined);
-  }, []);
-  const zones = useMemo(
-    () => statics.zones.map((z) => (liveZones[z.id] ? { ...z, status: liveZones[z.id].status } : z)),
-    [statics.zones, liveZones],
-  );
+        <Section
+          id="how"
+          eyebrow="How it works"
+          title="From the warning to the last rider at a shelter."
+          lead="Five steps, one database, every screen live."
+          className="bg-panel"
+        >
+          <ol className="grid gap-4 md:grid-cols-5">
+            {STEPS.map((s, i) => (
+              <li key={s.title} className="card relative flex flex-col p-5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d={s.icon} />
+                  </svg>
+                </span>
+                <span className="mt-4 font-mono text-xs text-muted">0{i + 1}</span>
+                <h3 className="mt-1 text-[17px] font-semibold tracking-[-0.01em] text-ink">{s.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{s.body}</p>
+              </li>
+            ))}
+          </ol>
+        </Section>
 
-  const homes = useMemo(() => Object.values(households) as unknown as Home[], [households]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [phone, setPhone] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [callId, setCallId] = useState<string | null>(null);
-  const [driver, setDriver] = useState<{ vehicleId: string; driverUrl: string; driverName: string } | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
-  const phoneRef = useRef<HTMLInputElement>(null);
+        <Section
+          id="mobility"
+          eyebrow="Mobility first"
+          title="Built for the hardest pickups."
+          lead="A wheelchair rider needs a vehicle with a lift and ten minutes to board. A bedbound neighbor needs an ambulance crew. There are few of those vehicles, so the planner treats them as the scarcest thing in the fire."
+        >
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {[
+                ["First in line", "Stretcher riders are planned 45 minutes ahead of their deadline, wheelchair riders 30."],
+                ["Weighted waiting", "Each minute a wheelchair rider waits counts double; a stretcher rider's counts four times."],
+                ["Reserved vehicles", "Ambulances and lift vans don't take someone who can walk while anyone who needs them is waiting."],
+                ["Seats per trip", "A full vehicle drops off at a shelter before its next pickup. No car ever carries more than it holds."],
+              ].map(([t, b]) => (
+                <li key={t} className="card p-5">
+                  <h3 className="font-semibold text-ink">{t}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted">{b}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-night to-night-2 p-7 text-white shadow-[var(--shadow-float)]">
+              <span className="eyebrow text-white/60" style={{ "--eyebrow-dot": "var(--color-out)" } as React.CSSProperties}>
+                Simulated night · North Scottsdale
+              </span>
+              <dl className="mt-6 grid grid-cols-2 gap-6">
+                <div>
+                  <dt className="text-xs text-white/60">Riders out before the fire</dt>
+                  <dd className="display mt-1 text-4xl text-[#34d399]">99%+</dd>
+                  <dd className="text-xs text-white/50">of about 730 households that need a ride</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/60">Wheelchair & stretcher riders</dt>
+                  <dd className="display mt-1 text-4xl text-[#34d399]">All</dd>
+                  <dd className="text-xs text-white/50">picked up before the fire reaches them</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/60">Homes called</dt>
+                  <dd className="display mt-1 text-3xl">6,000</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/60">Vehicles over their seats</dt>
+                  <dd className="display mt-1 text-3xl">0</dd>
+                </div>
+              </dl>
+              <p className="mt-6 text-xs leading-relaxed text-white/50">
+                One simulated night with 132 vehicles and the fire reaching the first home 90 minutes after the warning.
+                Press Play evacuation in the console to watch it.
+              </p>
+            </div>
+          </div>
+        </Section>
 
-  const home = selected ? (households[selected] as unknown as Home & { record?: Record<string, unknown> }) : null;
-  const e164 = `+1${phone.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "")}`;
-  const valid = /^\+1\d{10}$/.test(e164);
-  const turns = useMemo(
-    () => liveTurns.map((e) => e.data as unknown as Turn).filter((t) => t.callId === callId),
-    [liveTurns, callId],
-  );
+        <Section
+          id="product"
+          eyebrow="The product"
+          title="One system. Every seat in the response."
+          lead="Residents, dispatchers, drivers and judges each get a screen made for them, all on the same live data."
+          className="bg-panel"
+        >
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {SCREENS.map((s) => (
+              <Link key={s.href} href={s.href} className="card group flex flex-col p-6 transition-colors hover:border-accent/50">
+                <h3 className="flex items-center justify-between text-[17px] font-semibold text-ink">
+                  {s.title}
+                  <span className="text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-accent">
+                    <Arrow />
+                  </span>
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{s.body}</p>
+              </Link>
+            ))}
+          </div>
+        </Section>
 
-  function pickHouse(id: string) {
-    if (callId || driver) return;
-    if (!valid) {
-      setHint("Enter your phone number first, then tap your house.");
-      phoneRef.current?.focus();
-      return;
-    }
-    setHint(null);
-    setSelected(id);
-  }
+        <Section
+          id="honest"
+          eyebrow="Honest by design"
+          title="Never tell someone help is coming until it is."
+          lead="A false promise in a fire is worse than silence: people stop trying to get out. So the AI can listen, ask and read back, but it can't make promises."
+        >
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              ["Templates carry the facts", "Ride status, ETAs and driver names are filled from the database into fixed sentences. The model never writes them."],
+              ["Every line is checked", "An honesty guard reviews what the agent is about to say and blocks promises, guesses and reassurance it can't back up."],
+              ["Approval isn't a promise", "A dispatcher's approval stays silent. The resident hears about a ride only when a real driver has accepted it."],
+            ].map(([t, b]) => (
+              <div key={t} className="card p-6">
+                <h3 className="font-semibold text-ink">{t}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{b}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
 
-  async function drive() {
-    if (!selected || !valid) return;
-    setBusy(true);
-    setError(null);
-    try {
-      setDriver(await api.volunteer(selected, e164));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Something went wrong");
-    } finally {
-      setBusy(false);
-    }
-  }
+        <Section eyebrow="Built with" title="Serious infrastructure, open maps." className="bg-panel">
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {TECH.map(([name, what]) => (
+              <li key={name} className="flex items-baseline gap-3 rounded-2xl border border-line bg-bg px-4 py-3">
+                <span className="font-semibold text-ink">{name}</span>
+                <span className="text-sm text-muted">{what}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
 
-  async function callMe() {
-    if (!selected || !valid) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api.kiosk(selected, e164);
-      setCallId(res.callId);
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.message : "Something went wrong";
-      setError(e instanceof ApiError && e.status === 503 ? "The phone line isn't set up yet." : msg);
-    } finally {
-      setBusy(false);
-    }
-  }
+        <Section id="faq" eyebrow="Questions" title="What people ask us.">
+          <div className="grid gap-3 lg:max-w-3xl">
+            {FAQ.map(([q, a]) => (
+              <details key={q} className="card group p-5 [&_summary::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-ink">
+                  {q}
+                  <span className="text-muted transition-transform group-open:rotate-45" aria-hidden>
+                    +
+                  </span>
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-muted">{a}</p>
+              </details>
+            ))}
+          </div>
+        </Section>
 
-  return (
-    <main className="flex h-dvh flex-col">
-      <AppHeader />
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <section className="relative min-h-64 flex-1 bg-bg p-2">
-          {/* Blueprint grid behind the house picker. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage:
-                "linear-gradient(color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px)," +
-                "linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px)",
-              backgroundSize: "48px 48px",
-            }}
-          />
-          <HomeMap
-            homes={homes}
-            selected={selected}
-            onSelect={pickHouse}
-            zones={zones}
-            shelters={statics.shelters}
-            closures={statics.closures}
-          />
-          <div className="pointer-events-none absolute top-4 left-4 flex items-center gap-2">
-            <span className="glass flex items-center gap-2 rounded-full! px-3 py-1.5 text-xs text-muted">
-              <SimBadge /> {place} · other homes are simulated
-            </span>
+        <section className="bg-[#060a14] text-white">
+          <div className="mx-auto flex max-w-7xl flex-col items-start gap-6 px-5 py-20 sm:px-8 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="display text-[2rem] sm:text-[2.6rem]">Take the call yourself.</h2>
+              <p className="mt-3 max-w-xl text-white/70">
+                Play a resident who can&apos;t get out, or a neighbor with a free seat. It takes two minutes.
+              </p>
+            </div>
+            <Link href="/try" className="btn btn-primary btn-lg">
+              Try it now <Arrow />
+            </Link>
           </div>
         </section>
-
-        <aside className="scroll-soft flex w-full flex-col gap-6 overflow-y-auto border-t border-line bg-panel px-6 py-7 md:w-[26rem] md:border-t-0 md:border-l">
-          {driver ? (
-            <>
-              <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-night to-night-2 p-5 text-white shadow-[var(--shadow-float)]">
-                <span
-                  className="eyebrow text-white/60"
-                  style={{ "--eyebrow-dot": "var(--color-out)" } as React.CSSProperties}
-                >
-                  You&apos;re a volunteer driver
-                </span>
-                <p className="mt-3 text-lg font-semibold tracking-[-0.02em]">{driver.driverName}</p>
-                <p className="mt-1 text-sm text-white/70">3 seats · parked at {home?.address}</p>
-                <Link href={driver.driverUrl} className="btn btn-primary btn-lg mt-4 w-full">
-                  Open my driver screen <Arrow />
-                </Link>
-              </div>
-              <ol className="flex flex-col gap-2 text-sm text-muted">
-                <li>
-                  • Open the driver screen on your phone:{" "}
-                  {typeof window !== "undefined" ? `${window.location.host}${driver.driverUrl}` : driver.driverUrl}
-                </li>
-                <li>• When dispatch approves a pickup near you, it pops up there with a 2-minute countdown.</li>
-                <li>• Accept fills your seats; when you&apos;re full, the next driver gets the rest.</li>
-              </ol>
-              <button
-                type="button"
-                onClick={() => {
-                  setDriver(null);
-                  setSelected(null);
-                }}
-                className="btn btn-lg w-full"
-              >
-                Done
-              </button>
-            </>
-          ) : !callId ? (
-            <>
-              <div className="flex flex-col gap-3">
-                <span className="eyebrow">Try it · real call, real agent</span>
-                <h1 className="display text-[2.15rem]">
-                  Be the resident.
-                  <br />
-                  <span className="text-muted">Hear what they hear.</span>
-                </h1>
-                <p className="text-[15px] leading-relaxed text-muted">
-                  Way Out calls every home in the warning zone at once. Pick one and take the call yourself, or join as a
-                  neighbor who can drive.
-                </p>
-              </div>
-
-              <ol className="flex flex-col gap-3">
-                <Step n={1} done={valid} active={!valid}>
-                  Enter your phone number
-                </Step>
-                <Step n={2} done={!!selected} active={valid && !selected}>
-                  Tap a house on the map
-                </Step>
-                <Step n={3} done={false} active={valid && !!selected}>
-                  Choose: you need help, or you can drive
-                </Step>
-              </ol>
-
-              <div className="flex flex-col gap-3">
-                <label className="flex flex-col gap-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-muted">
-                  Your phone number (US)
-                  <span className="flex min-h-12 items-center rounded-2xl border border-line bg-panel-2 px-4 focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/15">
-                    <span className="mr-2 font-mono text-sm normal-case tracking-normal text-muted">+1</span>
-                    <input
-                      ref={phoneRef}
-                      inputMode="tel"
-                      autoComplete="tel"
-                      placeholder="(480) 555-1234"
-                      value={phone}
-                      onChange={(e) => {
-                        setPhone(e.target.value);
-                        setHint(null);
-                      }}
-                      className="min-w-0 flex-1 bg-transparent text-base font-normal normal-case tracking-normal text-ink outline-none placeholder:text-muted/60"
-                    />
-                  </span>
-                </label>
-                <div
-                  className={`rounded-2xl border px-4 py-3 transition-colors ${home ? "border-accent/40 bg-accent/[0.05]" : "border-dashed border-line"}`}
-                >
-                  <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted">Your house</p>
-                  <p className={`mt-0.5 font-medium ${home ? "text-ink" : "text-muted"}`}>
-                    {home?.address ?? (valid ? "Tap a house on the map" : "Enter your number first")}
-                  </p>
-                </div>
-                {hint && <p className="rounded-xl bg-accent/10 px-3 py-2 text-sm text-accent">{hint}</p>}
-
-                <fieldset disabled={!selected || !valid || busy} className="grid gap-2.5 disabled:opacity-50">
-                  <legend className="mb-2 text-[11px] font-medium uppercase tracking-[0.12em] text-muted">
-                    Who are you here?
-                  </legend>
-                  <button
-                    type="button"
-                    onClick={callMe}
-                    className="card flex items-start gap-3 rounded-2xl! p-4 text-left transition-colors hover:border-fire/50 disabled:pointer-events-none"
-                  >
-                    <span
-                      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-fire/10 text-fire"
-                      aria-hidden
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        className="h-5 w-5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
-                      </svg>
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-semibold">{busy ? "Calling…" : "I need help getting out"}</span>
-                      <span className="block text-sm text-muted">
-                        Way Out calls you now as the person who lives here.
-                      </span>
-                    </span>
-                    <Arrow />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={drive}
-                    className="card flex items-start gap-3 rounded-2xl! p-4 text-left transition-colors hover:border-accent/50 disabled:pointer-events-none"
-                  >
-                    <span
-                      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent"
-                      aria-hidden
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        className="h-5 w-5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M5 17h14M6 17l1.5-5h9L18 17M7.5 12l1.2-3.5h6.6L16.5 12" />
-                        <circle cx="8" cy="17.5" r="1.5" />
-                        <circle cx="16" cy="17.5" r="1.5" />
-                      </svg>
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-semibold">I can drive and help</span>
-                      <span className="block text-sm text-muted">
-                        Your car is parked here. Get pickups for neighbors on the driver screen.
-                      </span>
-                    </span>
-                    <Arrow />
-                  </button>
-                </fieldset>
-                {error && <p className="rounded-xl bg-help/10 px-3 py-2 text-sm text-help">{error}</p>}
-              </div>
-
-              <div className="rounded-2xl bg-panel-2 p-4">
-                <span className="eyebrow" style={{ "--eyebrow-dot": "var(--color-sim)" } as React.CSSProperties}>
-                  Try playing Rosa, 81
-                </span>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
-                  Say it&apos;s just you, then &ldquo;no wait, my husband is here, he&apos;s in a power chair&rdquo;.
-                  Then ask &ldquo;is someone coming?&rdquo; It won&apos;t promise a ride until a driver says yes.
-                </p>
-              </div>
-
-              <p className="flex items-start gap-2 text-xs text-muted">
-                <svg
-                  viewBox="0 0 24 24"
-                  className="mt-px h-3.5 w-3.5 shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden
-                >
-                  <path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z" strokeLinejoin="round" />
-                </svg>
-                Your number is used for this demo call, its callbacks, and your volunteer car only.
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-night to-night-2 p-5 text-white shadow-[var(--shadow-float)]">
-                <span
-                  className="eyebrow text-white/60"
-                  style={{ "--eyebrow-dot": "var(--color-out)" } as React.CSSProperties}
-                >
-                  On the call
-                </span>
-                <div className="mt-3 flex items-center gap-4">
-                  <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10">
-                    <span className="absolute inset-0 animate-ping-slow rounded-full bg-white/15" />
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      aria-hidden
-                    >
-                      <path
-                        d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm text-white/70">
-                      {turns.length ? "You're talking to Way Out" : "Your phone should ring now"}
-                    </p>
-                    <p className="truncate text-lg font-semibold tracking-[-0.02em]">{home?.address}</p>
-                  </div>
-                </div>
-              </div>
-
-              <section className="flex flex-col gap-2">
-                <span className="eyebrow">Transcript</span>
-                <ol className="flex flex-col gap-2">
-                  {turns.map((t, i) => (
-                    <li
-                      key={`${t.at}|${i}`}
-                      className={`max-w-[88%] animate-rise rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
-                        t.speaker === "agent"
-                          ? "self-start rounded-tl-md bg-panel-2"
-                          : "self-end rounded-tr-md bg-accent text-white"
-                      }`}
-                    >
-                      {t.text}
-                    </li>
-                  ))}
-                  {!turns.length && (
-                    <li className="flex items-center gap-2 text-sm text-muted">
-                      <span className="flex gap-1">
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted" />
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted [animation-delay:150ms]" />
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted [animation-delay:300ms]" />
-                      </span>
-                      Waiting for you to pick up
-                    </li>
-                  )}
-                </ol>
-              </section>
-
-              <section className="flex flex-col gap-2">
-                <span className="eyebrow">What Way Out heard</span>
-                <dl className="card flex flex-col px-4 py-2">
-                  {recordRows(home?.record as HouseholdRecord | undefined).map((row) => (
-                    <div
-                      key={row.key}
-                      className="flex justify-between gap-3 border-b border-line/70 py-2 text-sm last:border-0"
-                    >
-                      <dt className="text-muted">{row.label}</dt>
-                      <dd
-                        key={row.value ?? "—"}
-                        className={`animate-flash rounded px-1 font-medium ${row.value ? "" : "text-muted/50"}`}
-                      >
-                        {row.value ?? "—"}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCallId(null);
-                  setSelected(null);
-                }}
-                className="btn btn-lg w-full"
-              >
-                Done
-              </button>
-            </>
-          )}
-        </aside>
-      </div>
-    </main>
+      </main>
+      <SiteFooter />
+    </>
   );
 }

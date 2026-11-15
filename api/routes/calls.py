@@ -12,7 +12,7 @@ from api import requests as rq
 from api.agent import dialer
 from api.core.db import get_db
 from api.core.util import utcnow
-from api.routes._util import out
+from api.routes._util import out, place_visitor
 
 router = APIRouter(prefix="/calls", tags=["calls"])
 
@@ -70,6 +70,10 @@ async def get_call(call_id: str) -> dict:
 class KioskBody(BaseModel):
     householdId: str
     phone: str = Field(pattern=r"^\+1\d{10}$", description="US number in E.164, e.g. +14805551234")
+    # Optional: the visitor's real address (geocoded in the browser); the house moves there.
+    address: str | None = Field(default=None, max_length=160)
+    lon: float | None = None
+    lat: float | None = None
 
 
 KIOSK_PER_MINUTE = 6  # the kiosk is open to anyone; don't let it become a dialer for strangers
@@ -96,6 +100,8 @@ async def kiosk(body: KioskBody) -> dict:
         raise HTTPException(404, "household not found")
     if hh.get("reach") in dialer.BUSY:
         raise HTTPException(409, "this house is on a call right now; pick another one")
+    typed = bool(body.address)
+    hh = await place_visitor(db, hh, body.address, body.lon, body.lat)
     req = await db.requests.find_one({"householdId": hh["_id"], "status": {"$in": list(rq.OPEN_STATUSES)}})
     if req is not None:
         if req["status"] != "received":
@@ -120,7 +126,8 @@ async def kiosk(body: KioskBody) -> dict:
     )
     if hh.get("simulated") and "standInPhone" not in hh:
         await db.households.update_one({"_id": hh["_id"]}, {"$set": {"standInPhone": hh.get("phone")}})
-    await audit.log(db, "kiosk_claim", hh.get("address", ""), householdId=hh["_id"])  # no phone number in logs
+    # No phone number in logs, and no typed (real) address either.
+    await audit.log(db, "kiosk_claim", "visitor address" if typed else hh.get("address", ""), householdId=hh["_id"])
     # One house per phone number: earlier houses this number claimed go back to stand-ins (no more calls).
     await persona.release_other_houses(db, body.phone, keep=hh["_id"])
     # The visitor asked to be called: real calls on again (a drive test turns them off).

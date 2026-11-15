@@ -128,7 +128,7 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 |---|---|---|
 | POST | `/agent/start` | `{householdId, callType: outbound\|callback\|inbound, callId}` → `{say: [str], stage}` |
 | POST | `/agent/turn` | `{callId, householdId, text, language}` → `{say: [str], stage, done, record, requestStatus}` |
-| POST | `/calls/kiosk` | `{householdId, phone: +1XXXXXXXXXX}` → `{callId, householdId, address}`: the house becomes the caller's real phone, then is dialed. 429 above 6/min |
+| POST | `/calls/kiosk` | `{householdId, phone: +1XXXXXXXXXX, address?, lon?, lat?}` (*added:* a typed, geocoded address moves the house there; 422 if more than 2.5 km away) → `{callId, householdId, address}`: the house becomes the caller's real phone, then is dialed. 429 above 6/min |
 | POST | `/calls/dial` | `{householdId}` → `{callId}` (real call via Cartesia, or stand-in) |
 | GET | `/calls?limit=` | → `[call summary + household]`, most recently active first |
 | GET | `/calls/{id}` | → call summary + `turns` + open `request` |
@@ -148,7 +148,7 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | POST | `/vehicles/{id}/safety` | `{state, lon, lat}` |
 | GET | `/vehicles` | → `[vehicle]` |
 | GET | `/vehicles/{id}/run` | → `{vehicle, offers[], run[], shelters[], seats, now}`; `seats` = `{capacity, wheelchair, used, usedWheelchair, offered, offeredWheelchair, left, leftWheelchair, leftIfAllAccepted, onBoard, laterTrips}` for **this trip** (on board + pickups before the next shelter drop-off; `laterTrips` = accepted riders after it); each offer/stop = assignment + `request {id,status,need,deadlineAt,escalation}` + `household {id,address,location,language}` |
-| POST | `/vehicles/volunteer` | `{householdId, phone, name?}` → `{vehicleId, driverName, address, driverUrl}`. Try it → "I can drive": a real (not simulated) 3-seat neighbor car at that house; one per phone |
+| POST | `/vehicles/volunteer` | `{householdId, phone, name?, address?, lon?, lat?}` (*added:* same typed address as the kiosk) → `{vehicleId, driverName, address, driverUrl}`. Try it → "I can drive": a real (not simulated) 3-seat neighbor car at that house; one per phone |
 | POST | `/vehicles/{id}/presence` | driver app open (every ~20 s) → `{ok}`; stand-in drivers leave the vehicle alone for 2 min |
 | POST | `/roads/closures` | `{geometry, source}` → triggers re-plan |
 | GET | `/hazards` | → `{hazards, closures, shelters, zones}`: fire front, detections, road closures, shelters, zone outlines (what the console map draws) |
