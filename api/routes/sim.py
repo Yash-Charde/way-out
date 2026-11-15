@@ -1,4 +1,4 @@
-"""POST /sim/seed, POST /sim/control, POST /sim/census. Everything from here is labeled SIM."""
+"""POST /sim/seed, /sim/control, /sim/census, /sim/drive-test. Everything from here is labeled SIM."""
 
 import asyncio
 from typing import Literal
@@ -8,9 +8,10 @@ from pydantic import BaseModel, Field
 
 from api.core.db import get_db
 from api.core.util import utcnow
-from api.dispatch.loop import request_replan, sim_control, world_lock
+from api.dispatch.loop import request_replan, sim_control, solve_once, world_lock
 from api.hazard import fire
 from api.sim import seed as sim_seed
+from api.sim.geo import ROAD_KMH
 
 router = APIRouter(prefix="/sim", tags=["sim"])
 _background: set[asyncio.Task] = set()
@@ -93,3 +94,34 @@ async def get_control() -> dict:
 async def _control_view(db) -> dict:
     doc = await db.simControl.find_one({"_id": "sim"}) or {}
     return {"standIns": await sim_control(db), "speedup": float(doc.get("speedup") or 1.0)}
+
+
+@router.post("/drive-test")
+async def drive_test(
+    speedup: float = Query(default=10, ge=1, le=120, description="drive N× real time (10 = 350 km/h on screen)"),
+    homes: int = Query(default=200, ge=10, le=2000),
+    seed: int = Query(default=42),
+) -> dict:
+    """Watch the fleet really drive: fresh world with every home answered, auto-approve on, stand-in drivers
+    on. Each vehicle then accepts its offers after 6 s and moves along SR 89A once a second at
+    ROAD_KMH × speedup, boards, and drops off at the shelter (api/sim/drivers.py). Vehicles a phone has
+    open are left to the phone. Turn it off with POST /sim/control {standIns: {drivers: false}}."""
+    db = get_db()
+    async with world_lock:
+        world = await sim_seed.seed(db, homes=homes, rng_seed=seed, census="instant")
+    _publish_fire_run(db)
+    await db.simControl.update_one(
+        {"_id": "sim"},
+        {"$set": {"standIns.drivers": True, "standIns.approval": True, "speedup": speedup, "updatedAt": utcnow()}},
+        upsert=True,
+    )
+    plan = await solve_once(db)
+    request_replan()
+    return {
+        "world": world,
+        "plan": {k: plan.get(k) for k in ("version", "solver", "proposals", "autoApproved", "unsafeVehicles")},
+        "speedup": speedup,
+        "kmhOnScreen": ROAD_KMH * speedup,
+        "metersPerSecond": round(ROAD_KMH * 1000 / 3600 * speedup, 1),
+        "simulated": True,
+    }

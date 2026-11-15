@@ -13,13 +13,13 @@ router = APIRouter(prefix="/plans", tags=["plans"])
 
 
 class SolveBody(BaseModel):
-    solver: Literal["greedy", "ortools"] = "greedy"
+    solver: Literal["batched", "greedy", "ortools"] = "batched"
 
 
 @router.post("/solve")
 async def solve(body: SolveBody | None = None) -> dict:
-    """Plan once now. OR-Tools isn't built; until it is, every solve is greedy (`requested` says what
-    was asked for)."""
+    """Plan once now. `batched` (default): Uber-style batched matching; `greedy`: the old planner.
+    OR-Tools isn't built; it runs batched (`requested` says what was asked for)."""
     return await loop.solve_once(get_db(), (body or SolveBody()).solver)
 
 

@@ -98,11 +98,17 @@ export const api = {
       `/sim/seed?${new URLSearchParams(Object.entries(opts).map(([k, v]) => [k, String(v)])).toString()}`,
     ),
   census: () => call<{ requests: number }>("POST", "/sim/census"),
+  // fresh world + auto-approve + stand-in drivers: watch the fleet drive (speedup × real time)
+  driveTest: (speedup = 10) =>
+    call<{ plan: { proposals: number; autoApproved: number }; kmhOnScreen: number; metersPerSecond: number }>(
+      "POST",
+      `/sim/drive-test?speedup=${speedup}`,
+    ),
   simControl: (standIns?: Partial<StandIns>) =>
     standIns
       ? call<{ standIns: StandIns }>("POST", "/sim/control", { standIns })
       : call<{ standIns: StandIns }>("GET", "/sim/control"),
-  solve: (solver: "greedy" | "ortools" = "greedy") =>
+  solve: (solver: "batched" | "greedy" | "ortools" = "batched") =>
     call<{ version: number | null; proposals: number; unservable: number; solveMs: number }>(
       "POST",
       "/plans/solve",
@@ -113,6 +119,11 @@ export const api = {
   // kiosk: this house becomes the visitor's phone, then we call it
   kiosk: (householdId: string, phone: string) =>
     call<{ callId: string; householdId: string; address: string }>("POST", "/calls/kiosk", { householdId, phone }),
+  volunteer: (householdId: string, phone: string) =>
+    call<{ vehicleId: string; driverName: string; address: string; driverUrl: string }>("POST", "/vehicles/volunteer", {
+      householdId,
+      phone,
+    }),
   // call floor
   calls: (limit = 100) => call<CallSummary[]>("GET", `/calls?limit=${limit}`),
   call: (id: string) => call<CallDetail>("GET", `/calls/${encodeURIComponent(id)}`),
@@ -126,7 +137,18 @@ export type RunStop = Doc & {
   request: { id: string; status: string; need?: Record<string, unknown>; deadlineAt?: string; escalation?: string };
   household: { id: string; address?: string; location?: { coordinates: [number, number] }; language?: string };
 };
-export type DriverRun = { vehicle: Doc; offers: RunStop[]; run: RunStop[]; shelters: Doc[]; now: string };
+export type Seats = {
+  capacity: number;
+  wheelchair: number;
+  used: number;
+  usedWheelchair: number;
+  offered: number;
+  offeredWheelchair: number;
+  left: number;
+  leftWheelchair: number;
+  leftIfAllAccepted: number;
+};
+export type DriverRun = { vehicle: Doc; offers: RunStop[]; run: RunStop[]; shelters: Doc[]; seats?: Seats; now: string };
 
 export type StandIns = { voice: boolean; drivers: boolean; approval: boolean; fireZones: boolean };
 

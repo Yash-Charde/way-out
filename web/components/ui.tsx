@@ -37,19 +37,23 @@ const NAV = [
   { href: "/calls", label: "Calls" },
   { href: "/system", label: "System" },
   { href: "/driver", label: "Driver" },
+  { href: "/driver/fleet", label: "Fleet" },
   { href: "/drill", label: "Drill" },
   { href: "/", label: "Try it" },
 ];
 
 export function NavPill({ className = "" }: { className?: string }) {
   const path = usePathname();
+  // The most specific tab wins: /driver/fleet is Fleet, not Driver.
+  const current = NAV.filter((n) => (n.href === "/" ? path === "/" : path === n.href || path.startsWith(`${n.href}/`)))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
   return (
     <nav
       aria-label="Screens"
       className={`flex items-center gap-0.5 overflow-x-auto rounded-full border border-line bg-panel-2/70 p-1 shadow-[inset_0_1px_2px_rgb(16_24_40/0.04)] ${className}`}
     >
       {NAV.map((n) => {
-        const active = n.href === "/" ? path === "/" : path.startsWith(n.href);
+        const active = n.href === current;
         return (
           <Link
             key={n.href}
