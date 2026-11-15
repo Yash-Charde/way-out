@@ -4,6 +4,8 @@
  * Fire replay bar: scrub or play the simulated fire. Each position asks GET /hazards/fire?at=…, which reads
  * the detections from Tiger Data (a TimescaleDB hypertable) when the API has TIGER_DATABASE_URL.
  *
+ * Collapsed by default to one line (heading, play, time, Live); click the heading or the chevron for the
+ * slider, numbers and zone chips.
  * "Live" follows the clock (refreshes every 5 s; the fire is a function of time, nothing to push).
  * The fire also moves zones on the server (api/hazard/zones.py): SET when it touches the zone, GO when it
  * reaches the zone's first home. The chips show each zone's fire status; the switch turns that off.
@@ -48,7 +50,7 @@ const LEVEL_STYLE: Record<string, string> = {
 
 function zoneShort(id: string, names: Record<string, string>): string {
   const m = /zone[ _]?(\d+)/i.exec(names[id] ?? id);
-  return m ? `Zone ${m[1]}` : names[id] ?? id;
+  return m ? `Zone ${m[1]}` : (names[id] ?? id);
 }
 
 export function FireReplay({
@@ -70,6 +72,7 @@ export function FireReplay({
   const [reason, setReason] = useState<string | null>(null);
   const [at, setAt] = useState<number | null>(null); // null = live (now)
   const [playing, setPlaying] = useState(false);
+  const [open, setOpen] = useState(false); // collapsed: one line; open: slider, numbers, zones
   const seq = useRef(0);
 
   const load = useCallback(
@@ -79,7 +82,7 @@ export function FireReplay({
         const r = await api.fire(when === null ? undefined : new Date(when).toISOString());
         if (n !== seq.current) return; // a newer request is on its way
         setFire(r.fire);
-        setReason(r.fire ? null : r.reason ?? null);
+        setReason(r.fire ? null : (r.reason ?? null));
         onFire(r.fire, when === null);
       } catch {
         /* keep the last picture; the map still works */
@@ -128,16 +131,78 @@ export function FireReplay({
 
   const notYet = fire.elapsedMin <= 0;
   const play = () => {
-    if (!playing && pos >= end) setAt(start + 30 * 60_000); // replay from ignition
+    if (!playing && pos >= end)
+      setAt(start + 30 * 60_000); // replay from ignition
     else if (!playing && at === null) setAt(Math.max(pos, Date.parse(fire.ignitedAt)));
     setPlaying((p) => !p);
   };
+
+  const playButton = (
+    <button
+      className="btn h-8 w-8 min-h-8 shrink-0 justify-center p-0"
+      onClick={play}
+      aria-label={playing ? "Pause the fire replay" : "Play the fire replay"}
+    >
+      {playing ? (
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+          <rect x="6" y="5" width="4" height="14" rx="1" />
+          <rect x="14" y="5" width="4" height="14" rx="1" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+          <path d="M7 5v14l12-7z" />
+        </svg>
+      )}
+    </button>
+  );
+  const chevron = (
+    <button
+      className="btn h-7 w-7 min-h-7 shrink-0 justify-center p-0"
+      onClick={() => setOpen((o) => !o)}
+      aria-expanded={open}
+      aria-label={open ? "Collapse the fire replay" : "Expand the fire replay"}
+      title={open ? "Collapse" : "Show the timeline, numbers and zones"}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        aria-hidden
+      >
+        <path d="M6 15l6-6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+
+  if (!open)
+    return (
+      <div
+        className={`glass z-10 flex w-auto! items-center gap-2 rounded-full! py-1.5 pr-1.5 pl-3 text-xs ${className}`}
+      >
+        <SimBadge />
+        <button
+          className="font-semibold hover:underline"
+          onClick={() => setOpen(true)}
+          title="Show the timeline, numbers and zones"
+        >
+          Fire replay
+        </button>
+        {playButton}
+        <span className="tabular-nums text-muted">{hm(fire.elapsedMin)}</span>
+        {at === null && <span className="font-semibold text-fire">● Live</span>}
+        {chevron}
+      </div>
+    );
 
   return (
     <div className={`glass z-10 flex flex-col gap-1.5 px-3 py-2 ${className}`}>
       <div className="flex items-center gap-2 text-xs">
         <SimBadge />
-        <span className="font-semibold">Fire replay</span>
+        <button className="font-semibold hover:underline" onClick={() => setOpen(false)} title="Collapse">
+          Fire replay
+        </button>
         <span className="text-muted">· {fire.label}</span>
         <span className="ml-auto flex items-center gap-2">
           <span
@@ -162,25 +227,11 @@ export function FireReplay({
           >
             {at === null ? "● Live" : "Go live"}
           </button>
+          {chevron}
         </span>
       </div>
       <div className="flex items-center gap-3">
-        <button
-          className="btn h-8 w-8 min-h-8 justify-center p-0"
-          onClick={play}
-          aria-label={playing ? "Pause the fire replay" : "Play the fire replay"}
-        >
-          {playing ? (
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
-              <rect x="6" y="5" width="4" height="14" rx="1" />
-              <rect x="14" y="5" width="4" height="14" rx="1" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
-              <path d="M7 5v14l12-7z" />
-            </svg>
-          )}
-        </button>
+        {playButton}
         <input
           type="range"
           min={start}
@@ -233,10 +284,16 @@ export function FireReplay({
             >
               {zoneShort(z.zoneId, zoneNames)} {z.level.toUpperCase()}
               {z.level === "ready" && (
-                <span className="font-normal opacity-80"> · fire touches in {Math.max(1, Math.round(z.setInMin))}m</span>
+                <span className="font-normal opacity-80">
+                  {" "}
+                  · fire touches in {Math.max(1, Math.round(z.setInMin))}m
+                </span>
               )}
               {z.level === "set" && z.goInMin !== null && (
-                <span className="font-normal opacity-80"> · reaches homes in {Math.max(1, Math.round(z.goInMin))}m</span>
+                <span className="font-normal opacity-80">
+                  {" "}
+                  · reaches homes in {Math.max(1, Math.round(z.goInMin))}m
+                </span>
               )}
             </span>
           ))}

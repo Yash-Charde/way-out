@@ -222,6 +222,9 @@ async def seed(
     zone_meta = {z["id"]: z for z in sc.get("zones", [])}
     zone_ids = list(zone_meta) or ["zone_oak_creek_14", "zone_oak_creek_15"]
     zone_south, zone_north = zone_ids[0], zone_ids[-1]
+    # Zones from any other world (e.g. the reverted Phoenix metro scenario) leave with it.
+    await db.zones.delete_many({"_id": {"$nin": [zone_south, zone_north]}})
+    await db.simControl.update_one({"_id": "sim"}, {"$unset": {"world": ""}})
     for zid, (c1, c2) in ((zone_south, (tract_from, split)), (zone_north, (split, tract_to))):
         z = zone_meta.get(zid, {})
         await db.zones.update_one(
