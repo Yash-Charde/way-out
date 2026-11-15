@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from api import live, workers
 from api.core import db as dbmod
 from api.core.config import VERSION, get_settings
+from api.hazard import tiger
 from api.routes import (
     agent,
     assignments,
@@ -60,6 +61,7 @@ async def lifespan(app: FastAPI):
     tasks = workers.start(db) if get_settings().run_workers else []
     yield
     await workers.stop(tasks)
+    await tiger.close()
     dbmod.close()
 
 

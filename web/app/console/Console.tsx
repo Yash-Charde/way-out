@@ -10,7 +10,9 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapLegend } from "@/components/MapLegend";
 import { SimBadge } from "@/components/Shell";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { FireReplay } from "./FireReplay";
+import type { FireView } from "@/lib/api";
+import { AnimatedNumber, AppHeader, CloseButton } from "@/components/ui";
 import { api, type StandIns } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { useTheme } from "@/lib/theme";
@@ -28,22 +30,67 @@ type Statics = { hazards: Doc[]; closures: Doc[]; shelters: Doc[]; zones: Doc[] 
 const OPEN = new Set(["received", "approved", "driver_accepted", "en_route", "arrived", "reassigning"]);
 const ON_A_VAN = new Set(["driver_accepted", "en_route", "arrived"]);
 const HORIZON_MIN = 180; // full time-left bar
-const PANEL = "z-10 rounded-xl border border-line bg-panel/92 shadow-2xl backdrop-blur";
-const BTN = "rounded border border-line bg-panel px-2.5 py-1 text-ink hover:border-muted disabled:opacity-50";
-const BTN_PRIMARY =
-  "min-h-9 rounded bg-vehicle px-3 py-1 text-sm font-semibold text-bg hover:brightness-110 disabled:opacity-50";
+const PANEL = "glass z-10";
 
 function minutesLeft(iso: unknown, now: number): number | null {
   if (typeof iso !== "string") return null;
   return (new Date(/[zZ]|[+-]\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`).getTime() - now) / 60_000;
 }
 
+const STATUS_STYLE: Record<string, string> = {
+  received: "text-fire bg-fire/10",
+  reassigning: "text-fire bg-fire/10",
+  approved: "text-muted bg-ink/5",
+  driver_accepted: "text-vehicle bg-vehicle/10",
+  en_route: "text-vehicle bg-vehicle/10",
+  arrived: "text-out bg-out/10",
+};
+
+function StatusTag({ status }: { status: string }) {
+  return (
+    <span
+      key={status}
+      className={`animate-flash rounded-full px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.06em] ${
+        STATUS_STYLE[status] ?? "bg-ink/5 text-muted"
+      }`}
+    >
+      {status.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor" aria-hidden>
+      <circle cx="12" cy="7" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0z" />
+    </svg>
+  );
+}
+function WheelchairIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+      <circle cx="11" cy="4" r="1.6" fill="currentColor" stroke="none" />
+      <path d="M11 7v6h6l2 5M11 10h5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 11a6 6 0 1 0 7.5 7.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function NeedIcons({ need }: { need?: Need }) {
   if (!need) return null;
   return (
-    <span className="flex gap-1.5 text-xs text-muted">
-      <span title="people">👤×{need.seats ?? 1}</span>
-      {!!need.wheelchair && <span title="wheelchair">♿×{need.wheelchair}</span>}
+    <span className="flex items-center gap-2 text-[11px] text-muted">
+      <span title="people" className="flex items-center gap-0.5">
+        <PersonIcon />
+        {need.seats ?? 1}
+      </span>
+      {!!need.wheelchair && (
+        <span title="wheelchair" className="flex items-center gap-0.5">
+          <WheelchairIcon />
+          {need.wheelchair}
+        </span>
+      )}
       {!!need.stretcher && <span title="stretcher">stretcher</span>}
       {(need.crew ?? 1) > 1 && <span title="crew">crew {need.crew}</span>}
       {need.lift && <span title="lift">lift</span>}
@@ -52,42 +99,74 @@ function NeedIcons({ need }: { need?: Need }) {
 }
 
 function TimeLeft({ min }: { min: number | null }) {
-  if (min === null) return <span className="text-xs text-muted">no deadline</span>;
+  if (min === null) return <span className="text-[11px] text-muted">no deadline</span>;
   const pct = Math.max(0, Math.min(100, (min / HORIZON_MIN) * 100));
   const urgent = min < 30;
   return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded bg-line">
-        <div className={`h-full ${urgent ? "bg-fire" : "bg-help"}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className={`w-12 text-right text-xs tabular-nums ${urgent ? "text-fire" : "text-muted"}`}>
+    <div className="flex flex-col items-end gap-1">
+      <span className={`font-mono text-xs font-medium tabular-nums ${urgent ? "text-fire" : "text-ink"}`}>
         {min <= 0 ? "past" : `${Math.round(min)}m`}
       </span>
+      <div className="h-1 w-14 overflow-hidden rounded-full bg-line">
+        <div
+          className={`h-full rounded-full transition-[width] duration-700 ${urgent ? "bg-fire" : "bg-help"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }
 
-function Counter({ label, value, tone }: { label: string; value: number; tone?: string }) {
+function Stat({ label, value, tone = "text-ink" }: { label: string; value: number; tone?: string }) {
   return (
-    <div className="flex flex-col items-center px-3">
-      <span key={value} className={`text-lg font-semibold tabular-nums ${tone ?? ""}`}>
-        {value}
+    <div className="flex min-w-0 flex-col items-center px-2 py-1 min-[1200px]:min-w-[4.5rem] min-[1200px]:px-3">
+      <span className={`text-[1.4rem] font-semibold leading-none tracking-[-0.03em] tabular-nums ${tone}`}>
+        <AnimatedNumber value={value} />
       </span>
-      <span className="text-[10px] uppercase tracking-wider text-muted">{label}</span>
+      <span className="mt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted">{label}</span>
     </div>
+  );
+}
+
+function Initials({ name }: { name: string }) {
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-vehicle to-accent-2 text-[11px] font-semibold text-white shadow-sm">
+      {name.slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
+
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <label className="flex cursor-pointer select-none items-center gap-2 whitespace-nowrap text-xs text-muted">
+      <input type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="relative h-4 w-7 rounded-full bg-line transition-colors peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent/40 after:absolute after:top-0.5 after:left-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-3" />
+      {label}
+    </label>
+  );
+}
+
+function PanelTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
+  return (
+    <h2 className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-2.5">
+      <span className="flex items-center gap-2 text-[13px] font-semibold tracking-[-0.01em]">{children}</span>
+      {aside}
+    </h2>
   );
 }
 
 export function Console() {
   const connect = useLive((s) => s.connect);
   const resync = useLive((s) => s.resync);
-  const connected = useLive((s) => s.connected);
   const households = useLive((s) => s.households);
   const requests = useLive((s) => s.requests);
   const assignments = useLive((s) => s.assignments);
   const vehicles = useLive((s) => s.vehicles);
   const liveZones = useLive((s) => s.zones);
   const liveHazards = useLive((s) => s.hazards);
+  // A new seed writes a new fire run (hazards/fire_run); its store flips to "tiger" once Tiger has it.
+  const fireRun = liveHazards["fire_run"] as Doc | undefined;
+  const fireRunKey = `${String(fireRun?.runId ?? "")}:${String(fireRun?.store ?? "")}`;
   const plan = useLive((s) => s.plan);
   const { theme } = useTheme();
   const lastSafety = useLive((s) => s.safety[s.safety.length - 1]);
@@ -102,6 +181,9 @@ export function Console() {
   const [statics, setStatics] = useState<Statics>({ hazards: [], closures: [], shelters: [], zones: [] });
   const [drawing, setDrawing] = useState<LonLat[] | null>(null);
   const [panels, setPanels] = useState(true);
+  const [fireView, setFireView] = useState<FireView | null>(null);
+  // `live` (following now vs scrubbing) doesn't matter here: the map draws whatever time the replay shows.
+  const onFire = useCallback((f: FireView | null) => setFireView(f), []);
 
   const loadStatics = useCallback(async () => {
     try {
@@ -171,6 +253,14 @@ export function Console() {
     () => statics.zones.map((z) => ({ ...z, ...(liveZones[z.id] ? { status: liveZones[z.id].status } : {}) })),
     [statics.zones, liveZones],
   );
+  // Zone outlines follow the fire on the map: neutral until the fire touches a zone, amber once it does,
+  // red once it reaches the zone's homes (live, or as of the replay time when scrubbing). An evacuation order
+  // given before the fire gets there (TinyFish, a dispatcher) shows in the zone chips, not as a red outline.
+  const mapZones = useMemo(() => {
+    if (!fireView?.zones) return zones;
+    const lv = Object.fromEntries(fireView.zones.map((z) => [z.zoneId, z.level]));
+    return zones.map((z) => ({ ...z, status: lv[z.id] ?? "ready" }));
+  }, [zones, fireView]);
   const hazards = useMemo(
     () => Object.values({ ...Object.fromEntries(statics.hazards.map((h) => [h.id, h])), ...liveHazards }),
     [statics.hazards, liveHazards],
@@ -242,7 +332,7 @@ export function Console() {
   const record = (home?.record ?? {}) as Record<string, unknown>;
 
   return (
-    <main className="relative h-dvh overflow-hidden">
+    <main className="relative h-dvh overflow-hidden bg-bg">
       <MapView
         households={hh}
         requests={requests}
@@ -251,171 +341,149 @@ export function Console() {
         closures={statics.closures}
         hazards={hazards}
         shelters={statics.shelters}
-        zones={zones}
+        zones={mapZones}
         selectedHouseholdId={selectedHome}
         highlightAssignmentId={offers[selected]?.id ?? null}
         drawing={drawing}
         onSelectHousehold={setSelectedHome}
         onMapClick={onMapClick}
         theme={theme}
+        fire={fireView}
       />
 
-      <header
-        className={`${PANEL} absolute inset-x-3 top-3 flex flex-wrap items-center justify-between gap-3 px-4 py-2`}
+      <div className="absolute inset-x-3 top-3 z-20">
+        <AppHeader floating />
+      </div>
+
+      {/* KPI strip: the census at a glance, between the two panels. */}
+      <div
+        className={`${PANEL} absolute top-[4.6rem] left-1/2 hidden -translate-x-1/2 items-center divide-x divide-line px-1.5 py-1.5 min-[1200px]:flex`}
       >
-        <div className="flex items-center gap-3">
-          <span className="font-semibold">Way Out</span>
-          <span className="text-muted">/ Dispatcher</span>
-          <span className={`h-2 w-2 rounded-full ${connected ? "bg-out" : "bg-unknown"}`} title="live" />
-        </div>
-        <div className="flex">
-          <Counter label="homes" value={counts.homes} />
-          <Counter label="reached" value={counts.reached} />
-          <Counter label="need ride" value={counts.needRide} tone="text-fire" />
-          <Counter label="on a van" value={counts.onVan} tone="text-vehicle" />
-          <Counter label="out" value={counts.out} tone="text-out" />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <button
-            className={`${BTN} ${drawing ? "border-fire text-fire" : ""}`}
-            onClick={() => setDrawing((d) => (d ? null : []))}
-            title="Click two points on the road. Esc cancels."
-          >
-            {drawing ? (drawing.length ? "Click the second point…" : "Click the first point…") : "Close a road"}
-          </button>
-          <button className={BTN} onClick={() => setPanels((v) => !v)}>
-            {panels ? "Hide lists" : "Show lists"}
-          </button>
-          <ThemeToggle />
-          <span className="mx-1 h-5 w-px bg-line" />
-          <SimBadge />
-          <button className={BTN} disabled={!!busy} onClick={() => run(
-                  "Seed",
-                  async () => {
-                    const r = await api.seed();
-                    await resync(); // the old world's homes, requests and offers leave the screen
-                    return r;
-                  },
-                  () => "Seeded 200 homes (SIM)",
-                )}>
-            Seed
-          </button>
-          <button
-            className={BTN}
-            disabled={!!busy}
-            onClick={() => run("Census", async () => {
-                  const r = await api.census();
-                  await resync();
-                  return r;
-                }, (r) => `${(r as { requests: number }).requests} ride requests (SIM)`)}
-          >
-            Instant census
-          </button>
-          <button
-            className={BTN}
-            disabled={!!busy}
-            onClick={() =>
-              run("Solve", () => api.solve(), (r) => {
-                const s = r as { proposals: number; unservable: number; solveMs: number };
-                return `${s.proposals} offers, ${s.unservable} unservable · ${s.solveMs} ms`;
-              })
-            }
-          >
-            Solve now
-          </button>
-          <label className="flex items-center gap-1 text-muted">
-            <input
-              type="checkbox"
-              checked={!!standIns?.approval}
-              onChange={(e) =>
-                run("Auto-approve", async () => setStandIns((await api.simControl({ approval: e.target.checked })).standIns))
-              }
-            />
-            auto-approve
-          </label>
-          <label className="flex items-center gap-1 text-muted">
-            <input
-              type="checkbox"
-              checked={!!standIns?.drivers}
-              onChange={(e) =>
-                run("Stand-in drivers", async () => setStandIns((await api.simControl({ drivers: e.target.checked })).standIns))
-              }
-            />
-            stand-in drivers
-          </label>
-        </div>
-      </header>
+        <span className="eyebrow hidden px-3 xl:inline-flex">Oak Creek Canyon</span>
+        <Stat label="homes" value={counts.homes} />
+        <Stat label="reached" value={counts.reached} />
+        <Stat label="need ride" value={counts.needRide} tone="text-fire" />
+        <Stat label="on a van" value={counts.onVan} tone="text-vehicle" />
+        <Stat label="out" value={counts.out} tone="text-out" />
+      </div>
 
       {alert && (
         <div
           role="alert"
-          className="absolute left-1/2 top-32 z-20 -translate-x-1/2 rounded-lg border border-fire bg-fire/20 px-4 py-2 text-sm font-semibold text-fire"
+          className="absolute top-[9.25rem] left-1/2 z-30 flex -translate-x-1/2 animate-rise items-center gap-3 rounded-full border border-fire/50 bg-panel py-1.5 pr-1.5 pl-4 text-sm font-semibold text-fire shadow-[var(--shadow-float)]"
         >
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inset-0 animate-ping-slow rounded-full bg-fire" />
+            <span className="relative h-2.5 w-2.5 rounded-full bg-fire" />
+          </span>
           {alert.text}
-          <button className="ml-3 text-muted" onClick={() => setAlert(null)}>
-            ×
-          </button>
+          <CloseButton onClick={() => setAlert(null)} />
         </div>
       )}
 
       {note && (
-        <div className={`${PANEL} absolute left-1/2 top-20 -translate-x-1/2 px-4 py-2 text-sm`}>
+        <div
+          role="status"
+          className={`${PANEL} absolute top-[9.25rem] left-1/2 flex -translate-x-1/2 animate-rise items-center gap-3 rounded-full! py-1.5 pr-1.5 pl-4 text-sm ${
+            alert ? "mt-12" : ""
+          }`}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
           {note}
-          <button className="ml-3 text-muted" onClick={() => setNote(null)}>
-            ×
-          </button>
+          <CloseButton onClick={() => setNote(null)} />
         </div>
       )}
 
       {panels && (
-        <section className={`${PANEL} absolute bottom-14 left-3 top-[5.5rem] flex w-[22rem] flex-col`}>
-          <h2 className="border-b border-line px-3 py-2 text-sm font-semibold">
-            Open requests <span className="text-muted">({openRequests.length})</span>
-          </h2>
-          <ul className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
-            {openRequests.length === 0 && <li className="p-2 text-sm text-muted">No ride requests yet.</li>}
-            {openRequests.map((r) => (
-              <li
-                key={r.id}
-                onClick={() => setSelectedHome(String(r.householdId))}
-                className={`flex cursor-pointer items-center justify-between gap-2 rounded px-2.5 py-2 ${
-                  selectedHome === r.householdId ? "bg-vehicle/15 ring-1 ring-vehicle/50" : "bg-bg/60 hover:bg-bg"
-                }`}
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm">{addressOf(r)}</div>
-                  <div className="flex items-center gap-2">
-                    <NeedIcons need={r.need as Need} />
-                    <span className="text-[10px] uppercase tracking-wider text-muted">{String(r.status).replace("_", " ")}</span>
-                    {!!r.escalation && (
-                      <span className="rounded bg-fire/15 px-1 text-[10px] font-semibold uppercase text-fire">
-                        {String(r.escalation)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <TimeLeft min={minutesLeft(r.deadlineAt, now)} />
+        <section className={`${PANEL} absolute top-[4.6rem] bottom-[4.25rem] left-3 flex w-[22rem] flex-col`}>
+          {/* Narrow screens: the census strip lives here instead of between the panels. */}
+          <div className="grid grid-cols-5 border-b border-line py-2 min-[1200px]:hidden">
+            <Stat label="homes" value={counts.homes} />
+            <Stat label="reached" value={counts.reached} />
+            <Stat label="need" value={counts.needRide} tone="text-fire" />
+            <Stat label="on van" value={counts.onVan} tone="text-vehicle" />
+            <Stat label="out" value={counts.out} tone="text-out" />
+          </div>
+          <PanelTitle aside={<span className="chip">by deadline</span>}>
+            Open requests
+            <span className="rounded-full bg-fire/10 px-2 py-px text-[11px] font-semibold text-fire tabular-nums">
+              <AnimatedNumber value={openRequests.length} />
+            </span>
+          </PanelTitle>
+          <ul className="scroll-soft flex flex-1 flex-col gap-1.5 overflow-y-auto px-2.5 pb-2.5">
+            {openRequests.length === 0 && (
+              <li className="m-2 rounded-2xl border border-dashed border-line p-5 text-center text-sm text-muted">
+                No ride requests yet.
+                <span className="mt-1 block text-xs">Run an instant census from the dock below.</span>
               </li>
-            ))}
+            )}
+            {openRequests.map((r) => {
+              const min = minutesLeft(r.deadlineAt, now);
+              const urgent = min !== null && min < 30;
+              const active = selectedHome === r.householdId;
+              return (
+                <li
+                  key={r.id}
+                  onClick={() => setSelectedHome(String(r.householdId))}
+                  className={`group relative flex cursor-pointer items-center justify-between gap-3 overflow-hidden rounded-2xl border py-2.5 pr-3 pl-4 transition-all ${
+                    active
+                      ? "border-accent/50 bg-accent/[0.07] shadow-sm"
+                      : "border-transparent bg-panel-2/70 hover:border-line hover:bg-panel"
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className={`absolute top-2 bottom-2 left-1.5 w-[3px] rounded-full ${urgent ? "bg-fire" : "bg-help/70"}`}
+                  />
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-medium">{addressOf(r)}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <NeedIcons need={r.need as Need} />
+                      <StatusTag status={String(r.status)} />
+                      {!!r.escalation && (
+                        <span className="rounded-full bg-fire px-1.5 py-px text-[10px] font-semibold uppercase text-white">
+                          {String(r.escalation).replace(/_/g, " ")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <TimeLeft min={min} />
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
 
       {panels && (
-        <aside className="absolute bottom-14 right-3 top-[5.5rem] z-10 flex w-[24rem] flex-col gap-3">
+        <aside className="absolute top-[4.6rem] right-3 bottom-[4.25rem] z-10 flex w-[24rem] flex-col gap-3">
           <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
-            <h2 className="flex items-center justify-between border-b border-line px-3 py-2 text-sm font-semibold">
-              <span>
-                Plan {plan ? <span className="text-muted">v{String(plan.version)}</span> : null}
-                <span className="ml-2 text-xs font-normal text-muted">A approve · J/K move</span>
+            <PanelTitle
+              aside={
+                plan ? (
+                  <span className="font-mono text-[11px] text-muted">
+                    v{String(plan.version)} · {String(plan.solveMs)} ms
+                  </span>
+                ) : undefined
+              }
+            >
+              Plan to approve
+              <span className="hidden items-center gap-1 text-[11px] font-normal text-muted sm:flex">
+                <span className="kbd">A</span> approve <span className="kbd">J</span>
+                <span className="kbd">K</span> move
               </span>
-              {plan && <span className="text-xs font-normal text-muted">{String(plan.solveMs)} ms</span>}
-            </h2>
-            <ul className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
-              {offers.length === 0 && <li className="p-2 text-sm text-muted">Nothing to approve.</li>}
+            </PanelTitle>
+            <ul className="scroll-soft flex flex-1 flex-col gap-1.5 overflow-y-auto px-2.5 pb-2.5">
+              {offers.length === 0 && (
+                <li className="m-2 rounded-2xl border border-dashed border-line p-5 text-center text-sm text-muted">
+                  Nothing to approve.
+                  <span className="mt-1 block text-xs">New offers appear here as the solver plans.</span>
+                </li>
+              )}
               {offers.map((a, i) => {
                 const r = requests[String(a.requestId)];
                 const v = vehicles[String(a.vehicleId)];
+                const name = String(v?.driverName ?? a.vehicleId);
                 return (
                   <li
                     key={a.id}
@@ -423,22 +491,25 @@ export function Console() {
                       setSelected(i);
                       if (r) setSelectedHome(String(r.householdId));
                     }}
-                    className={`flex cursor-pointer items-center justify-between gap-2 rounded px-2.5 py-2 ${
-                      i === selected ? "bg-vehicle/15 ring-1 ring-vehicle/50" : "bg-bg/60 hover:bg-bg"
+                    className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border px-2.5 py-2 transition-all ${
+                      i === selected
+                        ? "border-accent/50 bg-accent/[0.07] shadow-sm"
+                        : "border-transparent bg-panel-2/70 hover:border-line hover:bg-panel"
                     }`}
                   >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm">{r ? addressOf(r) : String(a.requestId)}</div>
-                      <div className="flex items-center gap-2 text-xs text-muted">
-                        <span className="text-vehicle">{String(v?.driverName ?? a.vehicleId)}</span>
+                    <Initials name={name} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-medium">{r ? addressOf(r) : String(a.requestId)}</div>
+                      <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
+                        <span className="font-medium text-vehicle">{name}</span>
                         <span>stop {String(a.stopOrder)}</span>
-                        <span className="tabular-nums">ETA {Math.round(Number(a.etaMinutes ?? 0))}m</span>
+                        <span className="font-mono tabular-nums">ETA {Math.round(Number(a.etaMinutes ?? 0))}m</span>
                         {!!a.late && <span className="font-semibold text-fire">LATE</span>}
                       </div>
                     </div>
                     {a.status === "proposed" ? (
                       <button
-                        className={BTN_PRIMARY}
+                        className="btn btn-primary min-h-8 px-3.5"
                         disabled={!!busy}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -448,25 +519,33 @@ export function Console() {
                         Approve
                       </button>
                     ) : (
-                      <span className="text-xs text-help">offered</span>
+                      <span className="chip border-help/40 text-help">offered</span>
                     )}
                   </li>
                 );
               })}
             </ul>
           </section>
-          <section className={`${PANEL} max-h-[30%] overflow-y-auto`}>
-            <h2 className="border-b border-line px-3 py-2 text-sm font-semibold">Fleet</h2>
-            <ul className="flex flex-col gap-1 p-2 text-sm">
+          <section className={`${PANEL} scroll-soft max-h-[32%] overflow-y-auto`}>
+            <PanelTitle aside={<span className="text-[11px] text-muted">{Object.keys(vehicles).length} vehicles</span>}>
+              Fleet
+            </PanelTitle>
+            <ul className="flex flex-col gap-1 px-2.5 pb-2.5 text-sm">
               {Object.values(vehicles).map((v) => {
                 const sos = ["sos", "man_down"].includes(String((v.safety as { state?: string } | undefined)?.state));
+                const busyVan = String(v.status) !== "idle";
                 return (
-                  <li key={v.id} className={`flex items-center justify-between rounded px-2.5 py-1.5 ${sos ? "bg-fire/20" : "bg-bg/60"}`}>
-                    <span>
-                      {String(v.driverName)} <span className="text-xs text-muted">{String(v.kind)}</span>
+                  <li
+                    key={v.id}
+                    className={`flex items-center justify-between rounded-xl px-2.5 py-1.5 ${sos ? "bg-fire/15" : "hover:bg-panel-2"}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className={`h-1.5 w-1.5 rounded-full ${sos ? "bg-fire" : busyVan ? "bg-vehicle" : "bg-unknown"}`} />
+                      <span className="text-[13px] font-medium">{String(v.driverName)}</span>
+                      <span className="text-[11px] text-muted">{String(v.kind).replace(/_/g, " ")}</span>
                     </span>
-                    <span className="flex items-center gap-2 text-xs text-muted">
-                      {sos ? <span className="font-semibold text-fire">SOS</span> : String(v.status)}
+                    <span className="flex items-center gap-2 text-[11px] text-muted">
+                      {sos ? <span className="font-semibold text-fire">SOS</span> : String(v.status).replace(/_/g, " ")}
                       {!!v.simulated && <SimBadge />}
                     </span>
                   </li>
@@ -478,34 +557,40 @@ export function Console() {
       )}
 
       {home && (
-        <section className={`${PANEL} absolute bottom-14 left-1/2 w-[26rem] -translate-x-1/2 p-4`}>
+        <section
+          className={`${PANEL} absolute bottom-[13rem] left-1/2 z-20 w-[27rem] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 animate-rise p-4`}
+        >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="font-semibold">{String(home.address)}</div>
+              <span className="eyebrow" style={{ "--eyebrow-dot": home.role === "needs_ride" ? "var(--color-fire)" : undefined } as React.CSSProperties}>
+                {String(home.role).replace(/_/g, " ")}
+              </span>
+              <div className="mt-1 text-[15px] font-semibold tracking-[-0.01em]">{String(home.address)}</div>
               <div className="text-xs text-muted">
-                {String(home.role).replace("_", " ")} · reach {String(home.reach).replace("_", " ")}
-                {home.simulated ? " · SIM" : ""}
+                reach {String(home.reach).replace(/_/g, " ")}
+                {home.simulated ? " · simulated" : ""}
               </div>
             </div>
-            <button className="text-muted" onClick={() => setSelectedHome(null)}>
-              ×
-            </button>
+            <CloseButton onClick={() => setSelectedHome(null)} label="Close home details" />
           </div>
-          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+          <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
             {(["peopleCount", "mobility", "assistance", "canLeave", "hasCar", "pets"] as const).map((k) =>
               record[k] === undefined || record[k] === null ? null : (
-                <div key={k} className="flex justify-between gap-2">
-                  <dt className="text-muted">{k}</dt>
-                  <dd>{String(record[k]).replace(/_/g, " ")}</dd>
+                <div key={k} className="rounded-xl bg-panel-2 px-3 py-1.5">
+                  <dt className="text-[10px] uppercase tracking-[0.1em] text-muted">{k.replace(/([A-Z])/g, " $1")}</dt>
+                  <dd className="text-[13px] font-medium">{String(record[k]).replace(/_/g, " ")}</dd>
                 </div>
               ),
             )}
           </dl>
           {homeRequest && (
-            <div className="mt-2 flex items-center justify-between border-t border-line pt-2 text-sm">
-              <span>
-                ride: <span className="font-semibold">{String(homeRequest.status).replace("_", " ")}</span>
-                {homeRequest.escalation ? <span className="ml-2 text-fire">{String(homeRequest.escalation)}</span> : null}
+            <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-sm">
+              <span className="flex items-center gap-2">
+                <span className="text-muted">Ride</span>
+                <StatusTag status={String(homeRequest.status)} />
+                {homeRequest.escalation ? (
+                  <span className="text-xs font-semibold text-fire">{String(homeRequest.escalation).replace(/_/g, " ")}</span>
+                ) : null}
               </span>
               <TimeLeft min={minutesLeft(homeRequest.deadlineAt, now)} />
             </div>
@@ -513,9 +598,131 @@ export function Console() {
         </section>
       )}
 
-      <div className="absolute bottom-3 left-3 z-10">
-        <MapLegend className={PANEL} />
+      {/* Bottom dock: the map tool + simulation controls. */}
+      <div className={`${PANEL} absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full! px-2 py-1.5`}>
+        <button
+          className={`btn min-h-8 ${drawing ? "border-fire/60 text-fire" : ""}`}
+          onClick={() => setDrawing((d) => (d ? null : []))}
+          title="Click two points on the road. Esc cancels."
+        >
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M4 20 20 4M9 4l11 11" strokeLinecap="round" />
+          </svg>
+          {drawing ? (drawing.length ? "Click the second point…" : "Click the first point…") : "Close a road"}
+        </button>
+        <span className="h-5 w-px bg-line" />
+        <SimBadge />
+        <button
+          className="btn min-h-8"
+          disabled={!!busy}
+          onClick={() =>
+            run(
+              "Seed",
+              async () => {
+                const r = await api.seed();
+                await resync(); // the old world's homes, requests and offers leave the screen
+                return r;
+              },
+              () => "Seeded 200 homes (SIM)",
+            )
+          }
+        >
+          {busy === "Seed" ? "Seeding…" : "Seed"}
+        </button>
+        <button
+          className="btn min-h-8"
+          disabled={!!busy}
+          onClick={() =>
+            run(
+              "Census",
+              async () => {
+                const r = await api.census();
+                await resync();
+                return r;
+              },
+              (r) => `${(r as { requests: number }).requests} ride requests (SIM)`,
+            )
+          }
+        >
+          {busy === "Census" ? "Calling…" : "Instant census"}
+        </button>
+        <button
+          className="btn min-h-8"
+          disabled={!!busy}
+          onClick={() =>
+            run("Solve", () => api.solve(), (r) => {
+              const s = r as { proposals: number; unservable: number; solveMs: number };
+              return `${s.proposals} offers, ${s.unservable} unservable · ${s.solveMs} ms`;
+            })
+          }
+        >
+          {busy === "Solve" ? "Solving…" : "Solve now"}
+        </button>
+        <button
+          className="btn min-h-8"
+          disabled={!!busy}
+          title="Fresh world, every home answered, auto-approve + stand-in drivers on, 10× speed: watch the cars drive"
+          onClick={() =>
+            run(
+              "Drive test",
+              async () => {
+                const r = await api.driveTest(10);
+                await resync();
+                setStandIns((await api.simControl()).standIns);
+                return r;
+              },
+              (r) => {
+                const d = r as { plan: { proposals: number }; metersPerSecond: number };
+                return `Drive test: ${d.plan.proposals} pickups, cars move ${d.metersPerSecond} m every second (SIM)`;
+              },
+            )
+          }
+        >
+          {busy === "Drive test" ? "Starting…" : "Drive test"}
+        </button>
+        <span className="h-5 w-px bg-line" />
+        <Toggle
+          label="auto-approve"
+          checked={!!standIns?.approval}
+          onChange={(v) => run("Auto-approve", async () => setStandIns((await api.simControl({ approval: v })).standIns))}
+        />
+        <Toggle
+          label="stand-in drivers"
+          checked={!!standIns?.drivers}
+          onChange={(v) => run("Stand-in drivers", async () => setStandIns((await api.simControl({ drivers: v })).standIns))}
+        />
+        <span className="h-5 w-px bg-line" />
+        <button className="btn min-h-8" onClick={() => setPanels((v) => !v)}>
+          {panels ? "Hide lists" : "Show lists"}
+        </button>
       </div>
+
+      {/* Fire replay: above the legend, between the side panels. */}
+      <div
+        className={`pointer-events-none absolute bottom-[7rem] z-10 flex justify-center ${
+          panels ? "right-[25.5rem] left-[23.5rem]" : "right-3 left-3"
+        }`}
+      >
+        <FireReplay
+          runKey={fireRunKey}
+          onFire={onFire}
+          zoneNames={Object.fromEntries(statics.zones.map((z) => [z.id, String(z.name ?? z.id)]))}
+          fireZones={standIns?.fireZones ?? true}
+          onFireZones={(v) => run("Fire sets zones", async () => setStandIns((await api.simControl({ fireZones: v })).standIns))}
+          className="pointer-events-auto w-full max-w-[40rem]"
+        />
+      </div>
+
+      {!panels && (
+        <div className="absolute bottom-[4.25rem] left-3 z-10">
+          <MapLegend className={`${PANEL} rounded-full!`} />
+        </div>
+      )}
+      {panels && (
+        <div className="pointer-events-none absolute right-[25.5rem] bottom-[4.25rem] left-[23.5rem] z-10 flex justify-center">
+          <MapLegend className={`${PANEL} pointer-events-auto rounded-full!`} />
+        </div>
+      )}
     </main>
   );
 }
