@@ -118,6 +118,9 @@ class Result:
     unreachable_committed: list[str]  # committed pickups no route reaches anymore (revoke candidates)
     drive_min: float
     weighted_wait: float
+    committed_eta: dict[str, float] = field(default_factory=dict)  # committed pickup → minutes (inf = cut off)
+    # committed pickups this vehicle now reaches after the deadline, but another vehicle would reach in time
+    late_committed_rescuable: list[str] = field(default_factory=list)
 
     def objective(self) -> tuple[int, float, float]:
         """(late riders, need-weighted waiting, driving): compared in that order."""
@@ -191,16 +194,33 @@ def plan(
     """`board` overrides the boarding minutes (the impact simulation runs low/middle/high)."""
     # v0: a shelter is usable while it has room for the load; room isn't drawn down within one plan.
     unreachable: list[str] = []
+    committed_eta: dict[str, float] = {}
+    late: list[tuple[Rider, str]] = []
     states: dict[str, _State] = {}
     for v in vehicles:  # play out the committed run first; it never changes here
         st = _State(loc=v.loc, t=v.ready_min, seats=v.load[0], wheelchair=v.load[1], stretcher=v.load[2])
         for r in v.committed:
             nxt = _visit(v, st, r, shelters, travel, board)
-            if nxt is None:
+            if nxt is None:  # a closure cut it off: skip it, the rest of the run goes on as accepted
                 unreachable.append(r.id)
+                committed_eta[r.id] = math.inf
                 continue
-            st = nxt[0]
+            st, pickup = nxt
+            committed_eta[r.id] = round(pickup, 1)
+            if r.deadline_min is not None and pickup > r.deadline_min:
+                late.append((r, v.id))
         states[v.id] = st
+
+    # A late committed pickup moves only if another vehicle (after its own committed run) makes the deadline.
+    rescuable = []
+    for r, owner in late:
+        for w in vehicles:
+            if w.id == owner or not w.fits(r.need):
+                continue
+            nxt = _visit(w, states[w.id], r, shelters, travel, board)
+            if nxt is not None and r.deadline_min is not None and nxt[1] <= r.deadline_min:
+                rescuable.append(r.id)
+                break
 
     order = sorted(
         riders,
@@ -250,6 +270,8 @@ def plan(
         proposals=proposals,
         unservable=unservable,
         unreachable_committed=unreachable,
+        committed_eta=committed_eta,
+        late_committed_rescuable=rescuable,
         drive_min=sum(s.drive for s in states.values()),
         weighted_wait=wait,
     )

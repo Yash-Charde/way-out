@@ -166,6 +166,26 @@ async def revoke(db: AsyncIOMotorDatabase, assignment_id: str, *, reason: str) -
     return a
 
 
+async def withdraw(db: AsyncIOMotorDatabase, assignment_id: str, *, reason: str) -> dict[str, Any]:
+    """The plan can't keep an offer the driver hasn't accepted yet (e.g. a closure cut it off).
+
+    Silent, like `replaced`: nothing was promised to the resident. A late Accept tap gets "changed".
+    """
+    now = utcnow()
+    a = await db.assignments.find_one_and_update(
+        {"_id": assignment_id, "status": "offered"},
+        {"$set": {"status": "replaced", "respondedAt": now}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if a is None:
+        current = await _get(db, assignment_id)
+        raise AssignmentError(f"assignment is {current['status']}, not offered")
+    await _settle_request_after_offer_closed(db, a["requestId"], reason)
+    await _vehicle_status(db, a["vehicleId"])
+    await audit.log(db, "assignment_withdrawn", reason, assignmentId=assignment_id)
+    return a
+
+
 async def expire_offers(db: AsyncIOMotorDatabase, *, now: datetime | None = None) -> int:
     """Offers expire 2 minutes after offeredAt; the request goes silently back to received."""
     now = now or utcnow()

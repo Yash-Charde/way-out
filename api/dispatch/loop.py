@@ -7,6 +7,9 @@
 - Stable: a request that keeps the same vehicle keeps its assignment (ETA updated quietly). A new plan
   version is written only when an offer changes, so the console doesn't flicker every 5 s.
 - Auto-approve (sim control `standIns.approval`) approves new proposals right away.
+- D2-06: a committed pickup that no route reaches anymore (closure), or that this vehicle now reaches late
+  while another would make it, is taken back: accepted → revoke (resident told), offered → withdraw
+  (silent). Then the plan runs again at once so it gets a new offer. The rest of the run never moves.
 """
 
 import asyncio
@@ -18,7 +21,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api import assignments as asg
-from api import audit
+from api import requests as rq
 from api.core.util import aware, new_id, utcnow
 from api.dispatch import greedy
 from api.sim.geo import Road
@@ -66,7 +69,7 @@ async def solve_once(db: AsyncIOMotorDatabase, solver: str = "greedy", *, now: d
         return await _solve(db, solver, now or utcnow())
 
 
-async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime) -> dict:
+async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime, *, replanned: bool = False) -> dict:
     t0 = time.perf_counter()
     road = await road_with_closures(db)
 
@@ -130,6 +133,32 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime) -> dict:
     riders = [x for r in reqs if (x := rider(r)) is not None]
     result = greedy.plan(riders, vehicles, shelters, road.travel_min)
     solve_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    # ── D2-06: committed pickups the plan can't keep ─────────────────────────
+    # Accepted pickups move only when no route reaches them (a closure), or when this vehicle is now late
+    # and another one would make the deadline. Only that pickup changes; the rest of the run stays.
+    if not replanned:
+        cut = set(result.unreachable_committed)
+        rescue = set(result.late_committed_rescuable) - cut
+        revoked, withdrawn = [], []
+        for a in live:
+            rid = a["requestId"]
+            if rid not in cut and rid not in rescue:
+                continue
+            reason = "road closed: no route reaches this pickup" if rid in cut else "another vehicle reaches it in time"
+            status = (committed_reqs.get(rid) or {}).get("status")
+            try:
+                if a["status"] == "accepted" and status in ("driver_accepted", "en_route"):
+                    await asg.revoke(db, a["_id"], reason=reason)  # resident is told (reassigning callback)
+                    revoked.append(rid)
+                elif a["status"] == "offered":
+                    await asg.withdraw(db, a["_id"], reason=reason)  # nothing was promised: silent
+                    withdrawn.append(rid)
+            except (asg.AssignmentError, rq.RequestError) as e:  # moved under us; next loop decides again
+                log.info("could not take back %s: %s", a["_id"], e)
+        if revoked or withdrawn:
+            again = await _solve(db, solver, now, replanned=True)  # new offers right away
+            return {**again, "revoked": revoked, "withdrawn": withdrawn}
 
     # ── diff against the current proposals ─────────────────────────────────
     keep, create, replace = [], [], []
@@ -196,9 +225,6 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime) -> dict:
             {"_id": {"$in": result.unservable}, "escalation": None},
             {"$set": {"escalation": "unservable", "updatedAt": now}, "$inc": {"version": 1}},
         )
-    if result.unreachable_committed:
-        # TODO(D2-06): revoke these with api.assignments.revoke() (only that pickup).
-        await audit.log(db, "committed_unreachable", "no route", requestIds=result.unreachable_committed)
 
     approved = 0
     if (await sim_control(db))["approval"]:
@@ -221,6 +247,8 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime) -> dict:
         "unreachableCommitted": result.unreachable_committed,
         "autoApproved": approved,
         "objective": list(result.objective()),
+        "revoked": [],
+        "withdrawn": [],
     }
 
 
