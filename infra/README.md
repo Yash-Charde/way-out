@@ -51,6 +51,28 @@ The deploy job runs in the Environment for its branch. `VULTR_HOST`, `VULTR_USER
 in each Environment or once as repository secrets (simplest, one VM). The deploy job logs the VM into GHCR
 with the workflow's token, so the image can stay private.
 
+## MongoDB on the VM (dev and staging)
+
+Atlas M0 caps us at about 100 operations a second and every call crosses the internet, so a 6,000-home
+seed and census crawled. The compose file now runs `mongo` (MongoDB 7, single-node replica set, private,
+0.5 GB cache) next to the APIs. An env uses it only when its env file says so.
+
+Switch dev (and staging) over, on the VM:
+```bash
+cd /opt/wayout
+docker compose up -d --wait mongo                      # first start also runs rs.initiate
+sed -i 's|^MONGODB_URI=.*|MONGODB_URI=mongodb://mongo:27017/?replicaSet=rs0|' dev.env staging.env
+docker compose up -d api-dev api-staging               # restart with the new URI
+curl https://api-dev.<domain>/health                   # ok:true
+```
+Then open the console and press **Seed** (the new database starts empty). Undo = put the Atlas URI back in
+the env file and `docker compose up -d api-dev`.
+
+- No published port: nothing outside the VM can reach it. To look inside:
+  `docker compose exec mongo mongosh wayout_dev`.
+- Data lives in the `mongo_data` volume and survives redeploys. It is not backed up; the data is simulated.
+- prod.env keeps its Atlas URI until the team decides (Atlas is what the MongoDB prize asks about).
+
 ## Deploy / rollback
 
 Merging to `develop` / `staging` / `main` deploys `api-dev` / `api-staging` / `api-prod`.

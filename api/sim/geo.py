@@ -109,6 +109,10 @@ class Road:
                 return _lonlat(ax + t * (bx - ax) + nx * offset_m, ay + t * (by - ay) + ny * offset_m, self.ref_lat)
         return self.vertices[-1]
 
+    def off_area_m(self, p: LonLat) -> float:
+        """Meters from the road (a demo phone far away isn't in the scenario)."""
+        return self.project(p)[1]
+
     def blocked(self, c1: float, c2: float) -> bool:
         lo, hi = min(c1, c2), max(c1, c2)
         return any(a < hi and b > lo for a, b in self.closed)

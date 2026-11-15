@@ -45,6 +45,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
         ("households", [("location", GEOSPHERE)], {}),
         ("households", [("zoneId", ASCENDING), ("role", ASCENDING)], {}),
         ("households", [("phone", ASCENDING)], {}),
+        # census waves (fire-first) and the fire map's "homes reached" count, at city scale
+        ("households", [("reach", ASCENDING), ("fireArrivalAt", ASCENDING)], {}),
+        ("households", [("fireArrivalAt", ASCENDING)], {}),
         ("requests", [("status", ASCENDING), ("deadlineAt", ASCENDING)], {}),
         ("requests", [("householdId", ASCENDING)], {}),
         ("vehicles", [("location", GEOSPHERE)], {}),

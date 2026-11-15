@@ -135,3 +135,42 @@ async def upsert_for_household(
     await db.requests.insert_one(doc)
     await audit.log(db, "request_created", "received", requestId=doc["_id"], householdId=household_id)
     return doc
+
+
+async def bulk_create_received(db: AsyncIOMotorDatabase, items: list[dict[str, Any]]) -> int:
+    """Create many households' first requests in one write (the simulated census at city scale).
+
+    `items`: {householdId, need, deadlineAt, priority}. Households that already have an open request are
+    skipped (the per-household path, `upsert_for_household`, updates those). New requests start `received`,
+    like any other; one audit entry per batch. → requests created."""
+    if not items:
+        return 0
+    open_for = {
+        r["householdId"]
+        async for r in db.requests.find(
+            {"householdId": {"$in": [i["householdId"] for i in items]}, "status": {"$in": list(OPEN_STATUSES)}},
+            {"householdId": 1},
+        )
+    }
+    now = utcnow()
+    docs = [
+        {
+            "_id": new_id("rq"),
+            "householdId": i["householdId"],
+            "status": "received",
+            "need": Need(**(i.get("need") or {})).model_dump(),
+            "deadlineAt": i.get("deadlineAt"),
+            "priority": float(i.get("priority") or 0.0),
+            "escalation": None,
+            "dupOf": None,
+            "version": 1,
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        for i in items
+        if i["householdId"] not in open_for
+    ]
+    if docs:
+        await db.requests.insert_many(docs, ordered=False)
+        await audit.log(db, "requests_created", "received", count=len(docs), source="census")
+    return len(docs)

@@ -19,6 +19,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api import assignments as asg
+from api.core.bulk import set_many
 from api.core.util import aware, utcnow
 from api.dispatch import greedy
 from api.dispatch.loop import road_with_closures
@@ -61,6 +62,8 @@ def step_toward(road: Road, here: tuple[float, float], there: tuple[float, float
     → (new position, reached?) or None when a closure blocks the way."""
     if meters(here, there) <= max(AT_DOOR_M, 1e-9):
         return there, True
+    if hasattr(road, "step_toward"):  # the Phoenix street grid moves along its own L-shaped paths
+        return road.step_toward(here, there, step_m)
     (ch, off), ct = road.project(here), road.project(there)[0]
     if road.blocked(ch, ct):
         return None
@@ -90,33 +93,52 @@ async def tick(db: AsyncIOMotorDatabase, *, now: datetime | None = None, dt_s: f
     shelters = [s async for s in db.shelters.find({})]
     step_m = ROAD_KMH * 1000 / 3600 * dt_s * speedup
 
+    # Batched: a handful of queries per tick for the whole fleet, not five per vehicle (30 vans × 1 Hz
+    # was ~150 database calls a second, over Atlas's free-tier limit).
+    fleet = []
     async for v in db.vehicles.find({"simulated": True, "status": {"$ne": "offline"}}):
         seen = aware(v.get("phoneSeenAt"))
         if seen and (now - seen).total_seconds() < PHONE_FRESH_S:
             continue  # a real phone drives this one
         if (v.get("safety") or {}).get("state") in ("man_down", "sos"):
             continue
+        fleet.append(v)
+    if not fleet:
+        return stats
+    ids = [v["_id"] for v in fleet]
 
-        async for a in db.assignments.find({"vehicleId": v["_id"], "status": "offered"}):
-            offered = aware(a.get("offeredAt"))
-            if offered and (now - offered).total_seconds() >= ACCEPT_AFTER_S:
-                if (await asg.accept(db, a["_id"], now=now))["result"] == "accepted":
-                    stats["accepted"] += 1
+    async for a in db.assignments.find({"vehicleId": {"$in": ids}, "status": "offered"}):
+        offered = aware(a.get("offeredAt"))
+        if offered and (now - offered).total_seconds() >= ACCEPT_AFTER_S:
+            if (await asg.accept(db, a["_id"], now=now))["result"] == "accepted":
+                stats["accepted"] += 1
 
-        here = _loc(v)
-        if here is None:
-            continue
-        run = [a async for a in db.assignments.find({"vehicleId": v["_id"], "status": "accepted"}).sort("stopOrder", 1)]
-        reqs = {r["_id"]: r async for r in db.requests.find({"_id": {"$in": [a["requestId"] for a in run]}})}
-        onboard = [a for a in run if reqs.get(a["requestId"], {}).get("status") == "arrived"]
-        nxt = next(
+    runs: dict[str, list[dict[str, Any]]] = {}
+    async for a in db.assignments.find({"vehicleId": {"$in": ids}, "status": "accepted"}).sort("stopOrder", 1):
+        runs.setdefault(a["vehicleId"], []).append(a)
+    req_ids = [a["requestId"] for run in runs.values() for a in run]
+    reqs = {r["_id"]: r async for r in db.requests.find({"_id": {"$in": req_ids}})} if req_ids else {}
+
+    def next_stop(run: list[dict[str, Any]]) -> dict[str, Any] | None:
+        return next(
             (a for a in run if reqs.get(a["requestId"], {}).get("status") in ("driver_accepted", "en_route")), None
         )
 
+    hh_ids = [reqs[a["requestId"]]["householdId"] for run in runs.values() if (a := next_stop(run))]
+    homes = {h["_id"]: h async for h in db.households.find({"_id": {"$in": hh_ids}}, {"location": 1})} if hh_ids else {}
+    moves: list[tuple[dict[str, Any], dict[str, Any]]] = []
+
+    for v in fleet:
+        here = _loc(v)
+        if here is None:
+            continue
+        run = runs.get(v["_id"], [])
+        onboard = [a for a in run if reqs.get(a["requestId"], {}).get("status") == "arrived"]
+        nxt = next_stop(run)
+
         target, a_next = None, None
         if nxt is not None:
-            hh = await db.households.find_one({"_id": reqs[nxt["requestId"]]["householdId"]})
-            target, a_next = _loc(hh), nxt
+            target, a_next = _loc(homes.get(reqs[nxt["requestId"]]["householdId"])), nxt
         elif onboard and shelters:
             target = min((_loc(s) for s in shelters), key=lambda s: road.travel_min(here, s))
         if target is None:
@@ -135,16 +157,16 @@ async def tick(db: AsyncIOMotorDatabase, *, now: datetime | None = None, dt_s: f
             continue  # closure in the way: the solve loop revokes this pickup and the van moves on
         pos, reached = moved
         if pos != here:
-            await db.vehicles.update_one(
-                {"_id": v["_id"]},
-                {
-                    "$set": {
+            moves.append(
+                (
+                    {"_id": v["_id"]},
+                    {
                         "location": {"type": "Point", "coordinates": [round(pos[0], 6), round(pos[1], 6)]},
                         "heading": round(_bearing(here, pos), 1),
                         "speedMps": round(step_m / dt_s, 1),
                         "lastSeenAt": now,
-                    }
-                },
+                    },
+                )
             )
             stats["moved"] += 1
         if not reached:
@@ -162,6 +184,7 @@ async def tick(db: AsyncIOMotorDatabase, *, now: datetime | None = None, dt_s: f
             for a in onboard:
                 await asg.progress(db, a["_id"], "completed", by="stand-in driver")
                 stats["completed"] += 1
+    await set_many(db.vehicles, moves)  # every van's new position in one write
     return stats
 
 

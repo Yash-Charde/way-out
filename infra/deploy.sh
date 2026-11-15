@@ -14,6 +14,8 @@ touch .env dev.env staging.env prod.env
 if grep -q "^${VAR}=" .env; then sed -i "s|^${VAR}=.*|${VAR}=${TAG}|" .env; else echo "${VAR}=${TAG}" >> .env; fi
 
 docker compose pull "api-$ENV_NAME"
+# mongo first: dev/staging may point at it (prod stays on whatever prod.env says)
+docker compose up -d --wait mongo || echo "mongo not healthy yet; envs on Atlas are unaffected" >&2
 docker compose up -d caddy "api-$ENV_NAME"
 
 for _ in $(seq 1 30); do

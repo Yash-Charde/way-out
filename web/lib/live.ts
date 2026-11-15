@@ -24,16 +24,27 @@ type LiveState = {
   safety: LiveEvent[]; // vehicle.safety alerts
   connect: () => () => void;
   apply: (e: LiveEvent) => void;
+  applyMany: (events: LiveEvent[]) => void;
   resync: () => Promise<void>;
 };
 
+type Coll = "households" | "requests" | "assignments" | "vehicles" | "hazards" | "zones";
 const byId = (rows: Doc[]): ById => Object.fromEntries(rows.map((r) => [r.id, r]));
-const upsert = (m: ById, d: Doc): ById => ({ ...m, [d.id]: { ...m[d.id], ...d } });
 
 let socket: WebSocket | null = null;
 let refs = 0;
 let retry = 0;
 let timer: ReturnType<typeof setTimeout> | null = null;
+// Events wait here for up to FLUSH_MS, then land in the store together (one render, not one per event).
+const FLUSH_MS = 120;
+let queue: LiveEvent[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+function flush() {
+  flushTimer = null;
+  const batch = queue;
+  queue = [];
+  if (batch.length) useLive.getState().applyMany(batch);
+}
 
 export const useLive = create<LiveState>((set, get) => ({
   connected: false,
@@ -47,43 +58,60 @@ export const useLive = create<LiveState>((set, get) => ({
   turns: [],
   safety: [],
 
-  apply: (e) =>
+  apply: (e) => get().applyMany([e]),
+
+  // Many events, one store update: copy each touched collection once, then write every event into the
+  // copy. At city scale (6,000 homes answering in waves) one copy per event froze the console.
+  applyMany: (events) =>
     set((s) => {
-      switch (e.type) {
-        case "household.updated":
-          return { households: upsert(s.households, e.data) };
-        case "request.updated":
-          return { requests: upsert(s.requests, e.data) };
-        case "assignment.updated":
-          return { assignments: upsert(s.assignments, e.data) };
-        case "vehicle.updated":
-          return { vehicles: upsert(s.vehicles, e.data) };
-        case "vehicle.moved": {
-          const { id, lon, lat, heading } = e.data as { id: string; lon: number; lat: number; heading?: number };
-          return {
-            vehicles: upsert(s.vehicles, { id, heading, location: { type: "Point", coordinates: [lon, lat] } }),
-          };
+      const out: Partial<LiveState> = {};
+      const coll = (k: Coll): ById => (out[k] ??= { ...s[k] }) as ById;
+      const put = (k: Coll, d: Doc) => {
+        const m = coll(k);
+        m[d.id] = { ...m[d.id], ...d };
+      };
+      for (const e of events) {
+        switch (e.type) {
+          case "household.updated":
+            put("households", e.data);
+            break;
+          case "request.updated":
+            put("requests", e.data);
+            break;
+          case "assignment.updated":
+            put("assignments", e.data);
+            break;
+          case "vehicle.updated":
+            put("vehicles", e.data);
+            break;
+          case "vehicle.moved": {
+            const { id, lon, lat, heading } = e.data as { id: string; lon: number; lat: number; heading?: number };
+            put("vehicles", { id, heading, location: { type: "Point", coordinates: [lon, lat] } });
+            break;
+          }
+          case "vehicle.safety": {
+            // Also mark the vehicle itself, so the fleet list and map turn red without a reload.
+            const { id, state } = e.data as { id: string; state: string };
+            const prev = (coll("vehicles")[id]?.safety as Record<string, unknown> | undefined) ?? {};
+            out.safety = [...(out.safety ?? s.safety), e].slice(-50);
+            put("vehicles", { id, safety: { ...prev, state, at: e.at } });
+            break;
+          }
+          case "call.turn":
+            out.turns = [...(out.turns ?? s.turns), e].slice(-500);
+            break;
+          case "hazard.updated":
+            put("hazards", e.data);
+            break;
+          case "zone.updated":
+            put("zones", e.data);
+            break;
+          case "plan.updated":
+            out.plan = e.data;
+            break;
         }
-        case "vehicle.safety": {
-          // Also mark the vehicle itself, so the fleet list and map turn red without a reload.
-          const { id, state } = e.data as { id: string; state: string };
-          const prev = (s.vehicles[id]?.safety as Record<string, unknown> | undefined) ?? {};
-          return {
-            safety: [...s.safety, e].slice(-50),
-            vehicles: upsert(s.vehicles, { id, safety: { ...prev, state, at: e.at } }),
-          };
-        }
-        case "call.turn":
-          return { turns: [...s.turns, e].slice(-500) };
-        case "hazard.updated":
-          return { hazards: upsert(s.hazards, e.data) };
-        case "zone.updated":
-          return { zones: upsert(s.zones, e.data) };
-        case "plan.updated":
-          return { plan: e.data };
-        default:
-          return {};
       }
+      return out;
     }),
 
   resync: async () => {
@@ -139,7 +167,8 @@ function open() {
   };
   ws.onmessage = (m) => {
     try {
-      useLive.getState().apply(JSON.parse(m.data) as LiveEvent);
+      queue.push(JSON.parse(m.data) as LiveEvent);
+      if (!flushTimer) flushTimer = setTimeout(flush, FLUSH_MS);
     } catch {
       /* ignore malformed */
     }

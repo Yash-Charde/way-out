@@ -11,6 +11,7 @@ touches a zone marked CLEAR. Changes go through zonewatch.set_zone_status (audit
 
 import asyncio
 import logging
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -69,11 +70,27 @@ async def first_arrivals(db: AsyncIOMotorDatabase) -> dict[str, datetime]:
     return out
 
 
+_SCHEDULE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+
+
 async def schedule(db: AsyncIOMotorDatabase) -> list[dict[str, Any]]:
-    """Per zone: when the fire touches it (→ SET) and when it reaches its first home (→ GO)."""
+    """Per zone: when the fire touches it (→ SET) and when it reaches its first home (→ GO).
+
+    Fixed for a fire run (a reseed starts a new run), so it's computed once per run and kept for 30 s:
+    it scans every home, and the console and the zone worker both ask for it every few seconds."""
     doc = await db.hazards.find_one({"_id": RUN_ID})
     if doc is None:
         return []
+    hit = _SCHEDULE.get(doc.get("runId", ""))
+    if hit and time.monotonic() - hit[0] < 30:
+        return hit[1]
+    out = await _schedule(db, doc)
+    _SCHEDULE.clear()
+    _SCHEDULE[doc.get("runId", "")] = (time.monotonic(), out)
+    return out
+
+
+async def _schedule(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> list[dict[str, Any]]:
     run = run_from_doc(doc)
     firsts = await first_arrivals(db)
     out = []
