@@ -1,4 +1,5 @@
-"""Solve loop: read open work → greedy plan → write `proposed` assignments + a `plans` doc.
+"""Solve loop: read open work → batched plan (api/dispatch/batch.py) → write `proposed` assignments + a
+`plans` doc. Each solve is one batch. `solver: greedy` (POST /plans/solve) runs the old greedy planner.
 
 - Re-plans every 5 s while there is open work, every 30 s otherwise, and at once on `request_replan()`
   (road closures call it).
@@ -6,6 +7,8 @@
   are committed stops: never moved here. Approve / accept / revoke stay in api/assignments.py.
 - Stable: a request that keeps the same vehicle keeps its assignment (ETA updated quietly). A new plan
   version is written only when an offer changes, so the console doesn't flicker every 5 s.
+- Rescuers stay out of the fire: a vehicle whose position the fire front reaches within
+  FIRE_BUFFER_MIN (scenario spread model, same as the map) gets no new pickups.
 - Auto-approve (sim control `standIns.approval`) approves new proposals right away.
 - A committed pickup that no route reaches anymore (closure), or that this vehicle now reaches late
   while another would make it, is taken back: accepted → revoke (resident told), offered → withdraw
@@ -23,16 +26,20 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from api import assignments as asg
 from api import requests as rq
 from api.core.util import aware, new_id, utcnow
-from api.dispatch import greedy
+from api.dispatch import batch, greedy
+from api.hazard.fire import RUN_ID, run_from_doc
 from api.sim import world
 from api.sim.geo import Road
 from api.sim.grid import Grid
+from api.sim.seed import fire_minutes
 
 log = logging.getLogger(__name__)
 
 PLANNABLE = ("received", "reassigning")
 BUSY_EVERY_S, IDLE_EVERY_S = 5.0, 30.0
 ETA_QUIET_DELTA_MIN = 1.0
+MAX_RIDERS_PER_SOLVE = 250  # most urgent riders planned per solve (Phoenix metro scale)
+FIRE_BUFFER_MIN = 10.0  # a vehicle the front reaches within this many minutes is in the fire zone
 
 _lock = asyncio.Lock()
 # Held by solve_once and by /sim/seed + /sim/census, so a solve never writes offers for a world
@@ -70,7 +77,21 @@ async def sim_control(db: AsyncIOMotorDatabase) -> dict[str, bool]:
     return {"voice": False, "drivers": False, "approval": False, "fireZones": True, **(doc.get("standIns") or {})}
 
 
-async def solve_once(db: AsyncIOMotorDatabase, solver: str = "greedy", *, now: datetime | None = None) -> dict:
+async def fire_unsafe(db: AsyncIOMotorDatabase, locs: dict[str, tuple[float, float]], now: datetime) -> set[str]:
+    """Vehicles inside the fire front, or that the front reaches within FIRE_BUFFER_MIN."""
+    doc = await db.hazards.find_one({"_id": RUN_ID})
+    if not doc:
+        return set()
+    run = run_from_doc(doc)
+    elapsed = (now - run.ignited_at).total_seconds() / 60
+    return {
+        vid
+        for vid, loc in locs.items()
+        if fire_minutes(loc, run.ignition, run.wind_from_deg) - elapsed <= FIRE_BUFFER_MIN
+    }
+
+
+async def solve_once(db: AsyncIOMotorDatabase, solver: str = "batched", *, now: datetime | None = None) -> dict:
     async with _lock:
         return await _solve(db, solver, now or utcnow())
 
@@ -145,7 +166,19 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime, *, replan
             shelters.append(greedy.Shelter(s["_id"], loc, int(s.get("capacity", 0)) - int(s.get("occupied", 0))))
 
     riders = [x for r in reqs if (x := rider(r)) is not None]
-    result = greedy.plan(riders, vehicles, shelters, road.travel_min)
+    # A metro call-out can open ~1,000 requests at once. Plan the most urgent ones each round (reassigned
+    # first, then by deadline); the rest get their turn as these are taken. Keeps a solve well under a second.
+    riders.sort(key=lambda r: (not r.reassigning, r.deadline_min if r.deadline_min is not None else 1e9, -r.priority))
+    riders = riders[:MAX_RIDERS_PER_SOLVE]
+    used = "greedy" if solver == "greedy" else "batched"
+    unsafe = await fire_unsafe(db, {v.id: v.loc for v in vehicles}, now)
+    # CPU-bound: off the event loop, so /live and the API stay responsive during a big solve.
+    if used == "greedy":
+        result = await asyncio.to_thread(
+            greedy.plan, riders, [v for v in vehicles if v.id not in unsafe], shelters, road.travel_min
+        )
+    else:
+        result = await asyncio.to_thread(batch.plan, riders, vehicles, shelters, road.travel_min, unsafe=unsafe)
     solve_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     # ── committed pickups the plan can't keep ─────────────────────────
@@ -216,7 +249,8 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime, *, replan
             {
                 "_id": new_id("pl"),
                 "version": version,
-                "solver": "greedy",
+                "solver": used,
+                "unsafeVehicles": sorted(unsafe),
                 "solveMs": solve_ms,
                 "objective": list(result.objective()),
                 "changedOffers": len(create) + len(replace),
@@ -252,8 +286,9 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime, *, replan
 
     return {
         "version": version,
-        "solver": "greedy",
+        "solver": used,
         "requested": solver,
+        "unsafeVehicles": sorted(unsafe),
         "solveMs": solve_ms,
         "proposals": len(result.proposals),
         "created": len(create),

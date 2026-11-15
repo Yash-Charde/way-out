@@ -150,9 +150,17 @@ def _nearest_shelter(loc: LonLat, shelters: list[Shelter], riders: int, travel: 
 
 
 def _visit(
-    v: Vehicle, st: _State, r: Rider, shelters: list[Shelter], travel: Travel, board: dict[str, float] | None = None
+    v: Vehicle,
+    st: _State,
+    r: Rider,
+    shelters: list[Shelter],
+    travel: Travel,
+    board: dict[str, float] | None = None,
+    *,
+    allow_hop: bool = True,
 ) -> tuple[_State, float] | None:
-    """Drive to `r` (dropping off first if full). → (new state, pickup time) or None if unreachable."""
+    """Drive to `r` (dropping off first if full). → (new state, pickup time) or None if unreachable.
+    `allow_hop=False`: a full vehicle can't take `r` (no shelter round trip first)."""
     n = r.need
     s = _State(**st.__dict__)
     full = (
@@ -160,6 +168,8 @@ def _visit(
         or s.wheelchair + n.wheelchair > v.wheelchair
         or (s.stretcher + n.stretcher > v.stretcher)
     )
+    if full and not allow_hop:
+        return None
     if full and s.seats:
         hop = _nearest_shelter(s.loc, shelters, s.seats, travel)
         if hop is None:
@@ -184,15 +194,21 @@ def _visit(
     return s, pickup
 
 
-def plan(
-    riders: list[Rider],
-    vehicles: list[Vehicle],
-    shelters: list[Shelter],
-    travel: Travel,
-    board: dict[str, float] | None = None,
-) -> Result:
-    """`board` overrides the boarding minutes (the impact simulation runs low/middle/high)."""
-    # v0: a shelter is usable while it has room for the load; room isn't drawn down within one plan.
+@dataclass
+class Committed:
+    """Every vehicle's committed run played out: where each one is free to take new pickups."""
+
+    states: dict[str, "_State"]
+    committed_eta: dict[str, float]
+    unreachable: list[str]
+    rescuable: list[str]
+
+
+def play_committed(
+    vehicles: list[Vehicle], shelters: list[Shelter], travel: Travel, board: dict[str, float] | None = None
+) -> Committed:
+    """Play out the accepted + offered runs (never reordered). Also finds committed pickups that are now
+    late but another vehicle (after its own run) would make in time: candidates to move."""
     unreachable: list[str] = []
     committed_eta: dict[str, float] = {}
     late: list[tuple[Rider, str]] = []
@@ -221,6 +237,20 @@ def plan(
             if nxt is not None and r.deadline_min is not None and nxt[1] <= r.deadline_min:
                 rescuable.append(r.id)
                 break
+    return Committed(states, committed_eta, unreachable, rescuable)
+
+
+def plan(
+    riders: list[Rider],
+    vehicles: list[Vehicle],
+    shelters: list[Shelter],
+    travel: Travel,
+    board: dict[str, float] | None = None,
+) -> Result:
+    """`board` overrides the boarding minutes (the impact simulation runs low/middle/high)."""
+    # v0: a shelter is usable while it has room for the load; room isn't drawn down within one plan.
+    base = play_committed(vehicles, shelters, travel, board)
+    states, committed_eta, unreachable, rescuable = base.states, base.committed_eta, base.unreachable, base.rescuable
 
     order = sorted(
         riders,

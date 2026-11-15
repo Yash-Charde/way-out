@@ -4,6 +4,8 @@
  * Driver app. Phone first: one big action at a time, tap targets ≥ 48 px, high contrast.
  *   /driver            → pick a vehicle
  *   /driver?v=vh_luis  → offers (2-min countdown) → Accept → run → On my way → Picked up → At shelter
+ * Every address opens in the phone's map app. Seats left = capacity minus the accepted run; every live
+ * offer is listed, so the driver sees all the riders the planner gave them (up to their seats).
  * Live GPS → /vehicles/{id}/position. Hold SOS for 2 s → /vehicles/{id}/safety.
  * While this page is open the vehicle belongs to the phone; stand-in drivers leave it alone.
  */
@@ -12,20 +14,20 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SimBadge } from "@/components/Shell";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { LiveChip, Ring, Wordmark } from "@/components/ui";
-import { api, type DriverRun, type RunStop } from "@/lib/api";
+import { Arrow, LiveChip, Ring, Wordmark } from "@/components/ui";
+import { api, type DriverRun, type RunStop, type Seats } from "@/lib/api";
 import { useLive } from "@/lib/live";
 
-type Need = { seats?: number; wheelchair?: number; stretcher?: number; crew?: number; lift?: boolean };
+export type Need = { seats?: number; wheelchair?: number; stretcher?: number; crew?: number; lift?: boolean };
 type Gps = { lon: number; lat: number; heading?: number; speedMps?: number };
 
 const ROAD_KMH = 35;
-const OFFER_SECONDS = 120; // offers count down from 2 minutes
+export const OFFER_SECONDS = 120; // offers count down from 2 minutes
 const PRIMARY = "btn btn-primary btn-lg min-h-14 w-full text-[17px]";
 const SECONDARY = "btn btn-lg min-h-14 w-full text-[17px]";
 const CARD = "card rounded-3xl! p-5";
 
-function needText(n?: Need): string {
+export function needText(n?: Need): string {
   if (!n) return "";
   const parts = [`${n.seats ?? 1} ${(n.seats ?? 1) === 1 ? "person" : "people"}`];
   if (n.wheelchair) parts.push("wheelchair");
@@ -41,6 +43,117 @@ function directions(loc?: { coordinates: [number, number] }): string | null {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
 }
 
+/** The spot in the phone's map app (Google Maps; opens the app on iOS/Android when installed). */
+export function mapLink(loc?: { coordinates: [number, number] }): string | null {
+  if (!loc) return null;
+  const [lon, lat] = loc.coordinates;
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+}
+
+const PinIcon = ({ className = "h-4 w-4" }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" />
+    <circle cx="12" cy="9.5" r="2.5" />
+  </svg>
+);
+
+/** An address that opens in the map app when tapped. */
+export function AddressLink({
+  address,
+  loc,
+  className = "",
+}: {
+  address?: string;
+  loc?: { coordinates: [number, number] };
+  className?: string;
+}) {
+  const href = mapLink(loc);
+  if (!href) return <span className={className}>{address}</span>;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={`underline decoration-current/30 decoration-1 underline-offset-4 hover:decoration-current ${className}`}
+    >
+      {address}
+    </a>
+  );
+}
+
+export function OpenMapButton({
+  loc,
+  className = "btn min-h-11",
+  label = "Open map",
+}: {
+  loc?: { coordinates: [number, number] };
+  className?: string;
+  label?: string;
+}) {
+  const href = mapLink(loc);
+  if (!href) return null;
+  return (
+    <a
+      className={`${className} inline-flex items-center justify-center gap-1.5`}
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+    >
+      <PinIcon />
+      {label}
+    </a>
+  );
+}
+
+/** Seats left in this vehicle: one square per seat (filled = taken), wheelchair spaces, what offers hold. */
+function SeatsCard({ seats }: { seats: Seats }) {
+  const full = seats.left === 0;
+  return (
+    <section className="card rounded-3xl! p-4" aria-label="Seats">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="eyebrow">Seats</span>
+        <span className={`text-sm font-semibold ${full ? "text-help" : "text-out"}`}>
+          {full ? "Full: new riders go to the next driver" : `${seats.left} of ${seats.capacity} left`}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-hidden>
+        {Array.from({ length: seats.capacity }, (_, i) => {
+          const taken = i < seats.used;
+          const held = !taken && i < seats.used + seats.offered;
+          return (
+            <span
+              key={i}
+              className={`h-7 w-7 rounded-lg border-2 ${taken ? "border-accent bg-accent" : held ? "border-accent border-dashed bg-accent/15" : "border-line bg-panel-2"}`}
+            />
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+        {seats.wheelchair > 0 && (
+          <span>
+            Wheelchair spaces: {seats.leftWheelchair} of {seats.wheelchair} left
+          </span>
+        )}
+        {seats.offered > 0 && (
+          <span>
+            Offers waiting: {seats.offered} {seats.offered === 1 ? "seat" : "seats"} (then {seats.leftIfAllAccepted}{" "}
+            left)
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function etaFrom(gps: Gps | null, loc?: { coordinates: [number, number] }, fallback?: number): number {
   if (!gps || !loc) return Math.max(0, Math.round(fallback ?? 5));
   const [lon, lat] = loc.coordinates;
@@ -48,18 +161,19 @@ function etaFrom(gps: Gps | null, loc?: { coordinates: [number, number] }, fallb
   const dLat = ((lat - gps.lat) * Math.PI) / 180;
   const dLon = ((lon - gps.lon) * Math.PI) / 180;
   const a =
-    Math.sin(dLat / 2) ** 2 + Math.cos((gps.lat * Math.PI) / 180) * Math.cos((lat * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((gps.lat * Math.PI) / 180) * Math.cos((lat * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   const km = 2 * r * Math.asin(Math.sqrt(a)) * 1.3; // roads aren't straight
   return Math.max(1, Math.round((km / ROAD_KMH) * 60));
 }
 
-function secondsLeft(iso: string | undefined, now: number): number {
+export function secondsLeft(iso: string | undefined, now: number): number {
   if (!iso) return 0;
   const t = new Date(/[zZ]|[+-]\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`).getTime();
   return Math.max(0, Math.round((t - now) / 1000));
 }
 
-function Avatar({ name, size = "h-11 w-11 text-sm" }: { name: string; size?: string }) {
+export function Avatar({ name, size = "h-11 w-11 text-sm" }: { name: string; size?: string }) {
   return (
     <span
       className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-vehicle to-accent-2 font-semibold text-white shadow-sm ${size}`}
@@ -78,7 +192,16 @@ function HomeButton() {
       title="Home"
       className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-panel text-ink shadow-sm transition-colors hover:bg-panel-2"
     >
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
         <path d="M3 10.5 12 3l9 7.5" />
         <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5" />
       </svg>
@@ -93,9 +216,7 @@ function DriverTopBar({ live = true }: { live?: boolean }) {
         <HomeButton />
         <Wordmark href="/driver" />
       </div>
-      <div className="flex items-center gap-2">
-        {live ? <LiveChip /> : <ThemeToggle />}
-      </div>
+      <div className="flex items-center gap-2">{live ? <LiveChip /> : <ThemeToggle />}</div>
     </div>
   );
 }
@@ -118,7 +239,10 @@ function Stepper({ at }: { at: number }) {
 function Picker() {
   const [vehicles, setVehicles] = useState<DriverRun["vehicle"][] | null>(null);
   useEffect(() => {
-    api.vehicles().then(setVehicles).catch(() => setVehicles([]));
+    api
+      .vehicles()
+      .then(setVehicles)
+      .catch(() => setVehicles([]));
   }, []);
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-5 pt-5 pb-10">
@@ -131,6 +255,9 @@ function Picker() {
           <span className="text-muted">tonight?</span>
         </h1>
         <p className="text-muted">Pick your vehicle. Offers show up here the moment dispatch approves a pickup.</p>
+        <Link href="/driver/fleet" className="btn min-h-11 self-start">
+          See all drivers on one screen <Arrow />
+        </Link>
       </div>
       {vehicles === null && <p className="text-muted">Loading…</p>}
       {vehicles?.length === 0 && (
@@ -151,7 +278,14 @@ function Picker() {
                 <span className="block text-sm text-muted">{String(v.kind).replace(/_/g, " ")}</span>
               </span>
               {!!v.simulated && <SimBadge />}
-              <svg viewBox="0 0 24 24" className="h-4 w-4 text-muted" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <svg
+                viewBox="0 0 24 24"
+                className="h-4 w-4 text-muted"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden
+              >
                 <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
@@ -334,9 +468,10 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
   }
 
   const v = data.vehicle;
-  const offer = data.offers.find((o) => secondsLeft(o.expiresAt, now) > 0);
+  const liveOffers = data.offers.filter((o) => secondsLeft(o.expiresAt, now) > 0);
+  const offer = liveOffers[0];
+  const moreOffers = liveOffers.slice(1);
   const current = data.run.find((s) => s.request.status === "driver_accepted" || s.request.status === "en_route");
-  const later = data.run.filter((s) => s !== current && s.request.status !== "arrived");
   const onboard = data.run.filter((s) => s.request.status === "arrived");
   const people = onboard.reduce((n, s) => n + Number((s.request.need as Need | undefined)?.seats ?? 1), 0);
   const shelter = data.shelters[0] as (RunStop["household"] & { name?: string }) | undefined;
@@ -391,13 +526,20 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
               <span className="eyebrow text-white/60" style={{ "--eyebrow-dot": "#8fa6ff" } as React.CSSProperties}>
                 New pickup
               </span>
-              <p className="mt-2 text-[1.45rem] leading-tight font-semibold tracking-[-0.02em]">{offer.household.address}</p>
+              <p className="mt-2 text-[1.45rem] leading-tight font-semibold tracking-[-0.02em]">
+                <AddressLink address={offer.household.address} loc={offer.household.location} />
+              </p>
               <p className="mt-2 text-white/75">{needText(offer.request.need as Need)}</p>
               <p className="mt-0.5 text-white/75">About {Math.round(Number(offer.etaMinutes ?? 0))} min away</p>
+              <OpenMapButton
+                loc={offer.household.location}
+                className="btn mt-3 min-h-10 border-white/20 bg-white/10 px-3.5 text-sm text-white hover:bg-white/15"
+              />
             </div>
             <Ring value={secondsLeft(offer.expiresAt, now)} max={OFFER_SECONDS} size={84} stroke={7} tone="#8fa6ff">
               <span className="font-mono text-base font-semibold tabular-nums">
-                {Math.floor(secondsLeft(offer.expiresAt, now) / 60)}:{String(secondsLeft(offer.expiresAt, now) % 60).padStart(2, "0")}
+                {Math.floor(secondsLeft(offer.expiresAt, now) / 60)}:
+                {String(secondsLeft(offer.expiresAt, now) % 60).padStart(2, "0")}
               </span>
               <span className="text-[10px] text-white/60">left</span>
             </Ring>
@@ -417,17 +559,62 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
         </section>
       )}
 
+      {moreOffers.length > 0 && (
+        <section aria-label="More pickups for you" className="flex flex-col gap-2">
+          <h2 className="eyebrow">More pickups for you ({moreOffers.length})</h2>
+          {moreOffers.map((o) => (
+            <div key={o.id} className="card animate-rise rounded-2xl! p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <AddressLink address={o.household.address} loc={o.household.location} className="font-semibold" />
+                  <div className="mt-0.5 text-sm text-muted">
+                    {needText(o.request.need as Need)} · about {Math.round(Number(o.etaMinutes ?? 0))} min
+                  </div>
+                </div>
+                <span className="font-mono text-xs text-muted tabular-nums">
+                  {Math.floor(secondsLeft(o.expiresAt, now) / 60)}:
+                  {String(secondsLeft(o.expiresAt, now) % 60).padStart(2, "0")}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
+                <button className="btn btn-primary min-h-11" disabled={busy} onClick={() => accept(o)}>
+                  Accept
+                </button>
+                <button className="btn min-h-11" disabled={busy} onClick={() => act(() => api.decline(o.id))}>
+                  Decline
+                </button>
+                <OpenMapButton loc={o.household.location} label="Map" />
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {data.seats && <SeatsCard seats={data.seats} />}
+
       {current ? (
         <section className={CARD}>
           <Stepper at={current.request.status === "en_route" ? 1 : 0} />
-          <span className="eyebrow mt-5">{current.request.status === "en_route" ? "On the way to" : "Next pickup"}</span>
-          <p className="mt-1.5 text-[1.45rem] leading-tight font-semibold tracking-[-0.02em]">{current.household.address}</p>
+          <span className="eyebrow mt-5">
+            {current.request.status === "en_route" ? "On the way to" : "Next pickup"}
+          </span>
+          <p className="mt-1.5 text-[1.45rem] leading-tight font-semibold tracking-[-0.02em]">
+            <AddressLink address={current.household.address} loc={current.household.location} />
+          </p>
           <p className="mt-1.5 text-muted">{needText(current.request.need as Need)}</p>
-          {directions(current.household.location) && (
-            <a className="btn mt-3 min-h-11" href={directions(current.household.location)!}>
-              Directions
-            </a>
-          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <OpenMapButton loc={current.household.location} />
+            {directions(current.household.location) && (
+              <a
+                className="btn min-h-11"
+                href={directions(current.household.location)!}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Directions
+              </a>
+            )}
+          </div>
           <div className="mt-4 grid gap-2">
             {current.request.status === "driver_accepted" ? (
               <button
@@ -446,7 +633,11 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
                 On my way
               </button>
             ) : (
-              <button className={PRIMARY} disabled={busy} onClick={() => act(() => api.progress(current.id, "arrived"))}>
+              <button
+                className={PRIMARY}
+                disabled={busy}
+                onClick={() => act(() => api.progress(current.id, "arrived"))}
+              >
                 Picked up
               </button>
             )}
@@ -469,7 +660,10 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
                 </button>
               </div>
             ) : (
-              <button className="min-h-12 text-sm text-muted underline-offset-4 hover:underline" onClick={() => setConfirmCancel(true)}>
+              <button
+                className="min-h-12 text-sm text-muted underline-offset-4 hover:underline"
+                onClick={() => setConfirmCancel(true)}
+              >
                 I can&apos;t make this pickup
               </button>
             )}
@@ -495,12 +689,17 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
           <span className="eyebrow mt-5" style={{ "--eyebrow-dot": "var(--color-out)" } as React.CSSProperties}>
             On board: {people} {people === 1 ? "person" : "people"}
           </span>
-          <p className="mt-1.5 text-[1.45rem] leading-tight font-semibold tracking-[-0.02em]">{String(shelter?.name ?? "Shelter")}</p>
-          {directions(shelter?.location) && (
-            <a className="btn mt-3 min-h-11" href={directions(shelter?.location)!}>
-              Directions
-            </a>
-          )}
+          <p className="mt-1.5 text-[1.45rem] leading-tight font-semibold tracking-[-0.02em]">
+            <AddressLink address={String(shelter?.name ?? "Shelter")} loc={shelter?.location} />
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <OpenMapButton loc={shelter?.location} />
+            {directions(shelter?.location) && (
+              <a className="btn min-h-11" href={directions(shelter?.location)!} target="_blank" rel="noreferrer">
+                Directions
+              </a>
+            )}
+          </div>
           <button
             className={`${PRIMARY} mt-4`}
             disabled={busy}
@@ -515,26 +714,45 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
         </section>
       )}
 
-      {(later.length > 0 || (onboard.length > 0 && current)) && (
+      {data.run.length > 0 && (
         <section>
-          <h2 className="eyebrow mb-3">Your run</h2>
+          <h2 className="eyebrow mb-3">
+            Your riders ({data.run.length})
+            {data.seats ? ` · ${data.seats.left} ${data.seats.left === 1 ? "seat" : "seats"} left` : ""}
+          </h2>
           <ol className="flex flex-col gap-2">
-            {onboard.length > 0 && current && (
-              <li className="rounded-2xl bg-out/10 px-4 py-3 text-sm font-medium text-out">
-                On board: {people} {people === 1 ? "person" : "people"}
-              </li>
-            )}
-            {later.map((s, i) => (
-              <li key={s.id} className="flex items-start gap-3 rounded-2xl border border-line bg-panel px-4 py-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-panel-2 font-mono text-[11px] font-semibold text-muted">
-                  {i + 2}
-                </span>
-                <div className="min-w-0">
-                <div className="text-sm font-medium">{s.household.address}</div>
-                <div className="text-xs text-muted">{needText(s.request.need as Need)}</div>
-                </div>
-              </li>
-            ))}
+            {data.run.map((s, i) => {
+              const st = s.request.status;
+              const tag =
+                st === "arrived"
+                  ? ["On board", "bg-out/10 text-out"]
+                  : s === current
+                    ? [st === "en_route" ? "On the way" : "Next", "bg-accent/10 text-accent"]
+                    : ["Later", "bg-panel-2 text-muted"];
+              return (
+                <li key={s.id} className="flex items-start gap-3 rounded-2xl border border-line bg-panel px-4 py-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-panel-2 font-mono text-[11px] font-semibold text-muted">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <AddressLink
+                      address={s.household.address}
+                      loc={s.household.location}
+                      className="text-sm font-medium"
+                    />
+                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted">
+                      <span className={`rounded-full px-2 py-px font-medium ${tag[1]}`}>{tag[0]}</span>
+                      {needText(s.request.need as Need)}
+                    </div>
+                  </div>
+                  <OpenMapButton
+                    loc={s.household.location}
+                    className="btn min-h-10 shrink-0 px-3 text-sm"
+                    label="Map"
+                  />
+                </li>
+              );
+            })}
           </ol>
         </section>
       )}

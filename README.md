@@ -111,10 +111,11 @@ The database schema, status machine, API and event types are in [`docs/CONTRACT.
 
 | Path | Who | What |
 |---|---|---|
-| `/` | Anyone | Kiosk: pick a house on the map, enter a phone number, and Way Out calls you as that resident |
+| `/` | Anyone | Try it: enter a phone number, tap a house, then either get called as that resident or join as a volunteer driver |
 | `/console` | Dispatcher | Live map (fire, homes by status, vehicles, routes, closures), requests by deadline, plan to approve, fleet, door-knock list, safety alerts |
 | `/calls` | Dispatcher | Every live call, its transcript and record filling in, latency per turn |
-| `/driver` | Drivers (phone, PWA) | Offer card → Accept/Decline → stop list → "Picked up". Fire distance banner, SOS (hold), man-down |
+| `/driver` | Drivers (phone, PWA) | Offer cards → Accept/Decline → every rider + seats left → "Picked up". Addresses open in the map app. SOS (hold), man-down |
+| `/driver/fleet` | Dispatcher / demo | Every driver's screen on one page, with their notifications as they happen |
 | `/system` | Anyone | Under the hood: latency, honesty rate, dispatch vs. baseline (simulated), audit trail |
 | `/drill` | Testing | A clearly labeled Way Out drill page with a test zone's Ready / Set / Go status, read by the zone watcher. Never styled as a county site |
 | `/report` | Anyone | Photo hazard reports (not built yet) |
@@ -125,7 +126,7 @@ The UI follows the system theme (light or dark) and has a manual toggle. Anythin
 
 | Problem | Method | Where |
 |---|---|---|
-| Which vehicle picks up whom | Greedy earliest-deadline-first with capacities and wheelchair/lift needs; accepted stops never move; re-plans on every change | `api/dispatch/` |
+| Which vehicle picks up whom | Batched matching (Hungarian algorithm over pickup ETAs, like ride-hail dispatch), seats filled before the next vehicle, deadlines, wheelchair/lift needs, no rescuers inside the fire; accepted stops never move; re-plans every 5 s | `api/dispatch/` |
 | Travel times | SR 89A polyline road model plus side streets | `api/sim/geo.py` |
 | Duplicate calls | Embeddings + Atlas Vector Search, then a rule check (same address ±50 m) | `api/agent/dedupe.py` |
 | Don't promise rescue | Status templates in code + an honesty guard on every agent line; evals over 40 personas | `api/agent/templates.py`, `api/agent/honesty.py`, `evals/` |

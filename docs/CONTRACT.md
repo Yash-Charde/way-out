@@ -136,7 +136,7 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | GET | `/requests/open` | → `[request + household]` sorted by deadline |
 | POST | `/requests/{id}/escalate` | `{reason}` |
 | POST | `/requests/{id}/close` | `{reason: resident_left\|duplicate\|dispatcher}` → request (closed). No callback |
-| POST | `/plans/solve` | `{solver: greedy\|ortools}` → plan |
+| POST | `/plans/solve` | `{solver: batched\|greedy\|ortools}` → plan (default batched; ortools runs batched) |
 | GET | `/plans/latest` | → newest plan + every live `proposed`/`offered` assignment (any version), by ETA |
 | POST | `/assignments/{id}/approve` | → assignment |
 | POST | `/assignments/{id}/accept` | → `{result: accepted\|changed}` |
@@ -146,7 +146,8 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | POST | `/vehicles/{id}/position` | `{lon, lat, heading, speedMps}` |
 | POST | `/vehicles/{id}/safety` | `{state, lon, lat}` |
 | GET | `/vehicles` | → `[vehicle]` |
-| GET | `/vehicles/{id}/run` | → `{vehicle, offers[], run[], shelters[], now}`; each offer/stop = assignment + `request {id,status,need,deadlineAt,escalation}` + `household {id,address,location,language}` |
+| GET | `/vehicles/{id}/run` | → `{vehicle, offers[], run[], shelters[], seats, now}`; `seats` = `{capacity, wheelchair, used, usedWheelchair, offered, offeredWheelchair, left, leftWheelchair, leftIfAllAccepted}`; each offer/stop = assignment + `request {id,status,need,deadlineAt,escalation}` + `household {id,address,location,language}` |
+| POST | `/vehicles/volunteer` | `{householdId, phone, name?}` → `{vehicleId, driverName, address, driverUrl}`. Try it → "I can drive": a real (not simulated) 3-seat neighbor car at that house; one per phone |
 | POST | `/vehicles/{id}/presence` | driver app open (every ~20 s) → `{ok}`; stand-in drivers leave the vehicle alone for 2 min |
 | POST | `/roads/closures` | `{geometry, source}` → triggers re-plan |
 | GET | `/hazards` | → `{hazards, closures, shelters, zones}`: fire front, detections, road closures, shelters, zone outlines (what the console map draws) |
@@ -159,6 +160,7 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | POST | `/zones/county-check` | one read-only TinyFish fetch of `COUNTY_PAGE_URL`, logged (Bearer) |
 | POST | `/zones/{id}/status` | `{status, sourceUrl}` (TinyFish webhook) → starts dialing at `set` |
 | POST | `/sim/seed` | `?scenario=pocket-fire\|valley-fire&homes=&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world. `pocket-fire` (Oak Creek Canyon): 200 homes, 8 vehicles, 2 shelters, 2 zones. `valley-fire` (Phoenix metro, the web's default): ~8,000 homes, 40 vehicles, 4 shelters, 13 zones. Real households stay |
+| POST | `/sim/drive-test` | `?speedup=10&homes=200` → fresh world (instant census), auto-approve + stand-in drivers on, one solve. Vans then move once a second along the scenario's roads (SR 89A or the Phoenix grid) at 35 km/h × speedup. → `{world, plan, speedup, kmhOnScreen, metersPerSecond}` |
 | POST | `/sim/census` | `?perSecond=0&zones=a,b` answer unreached simulated homes from their personas (no calls) → `{requests}`. `perSecond > 0`: background waves, fire-first → `{started: true}` |
 | GET | `/sim/scenario` | → `{name, title, bounds: [[w,s],[e,n]]}` the loaded world and the box the console frames *(added: Phoenix metro)* |
 | POST / GET | `/sim/control` | `{standIns?: {voice, drivers, approval, fireZones}: bool, speedup?: 1–600}` (partial updates) → `{standIns, speedup}`. `drivers`: simulated vehicles accept after 6 s and drive their runs; `speedup`: they drive and board N× faster |

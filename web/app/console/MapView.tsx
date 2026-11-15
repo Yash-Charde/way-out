@@ -9,7 +9,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { MapboxOverlay, type MapboxOverlayProps } from "@deck.gl/mapbox";
-import { PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
+import { IconLayer, PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import { setWorkerUrl, type StyleSpecification } from "maplibre-gl";
 import type { Theme } from "@/lib/theme";
@@ -33,6 +33,32 @@ export const COLORS: Record<string, RGBA> = {
   shelter: [167, 139, 250, 255],
   ink: [230, 233, 239, 255],
 };
+
+// Vehicles are drawn as top-down cars / vans pointing north; IconLayer turns them to their heading.
+// Paratransit and agency vans get the longer van shape; neighbors and volunteers a car.
+function vehicleSvg(kind: "car" | "van", body: string): string {
+  const len = kind === "van" ? 86 : 72;
+  const top = (96 - len) / 2;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96" viewBox="0 0 64 96">` +
+    `<rect x="14" y="${top}" width="36" height="${len}" rx="${kind === "van" ? 8 : 13}" fill="${body}" stroke="white" stroke-width="4"/>` +
+    // windshield (front = up), rear window, roof line
+    `<rect x="19" y="${top + 13}" width="26" height="${kind === "van" ? 12 : 14}" rx="4" fill="#0b1220" fill-opacity="0.78"/>` +
+    `<rect x="20" y="${top + len - 15}" width="24" height="8" rx="3" fill="#0b1220" fill-opacity="0.55"/>` +
+    `<rect x="22" y="${top + (kind === "van" ? 30 : 31)}" width="20" height="${len - (kind === "van" ? 50 : 50)}" rx="3" fill="white" fill-opacity="0.18"/>` +
+    // headlights
+    `<circle cx="20" cy="${top + 4}" r="2.4" fill="#fff6c2"/><circle cx="44" cy="${top + 4}" r="2.4" fill="#fff6c2"/>` +
+    `</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+const VEHICLE_ICONS = {
+  car: vehicleSvg("car", "#4da3ff"),
+  van: vehicleSvg("van", "#4da3ff"),
+  carAlert: vehicleSvg("car", "#ff4d3d"),
+  vanAlert: vehicleSvg("van", "#ff4d3d"),
+};
+const isVan = (v: Doc) => ["paratransit", "agency_van", "van"].includes(String(v.kind));
+const inDanger = (v: Doc) => ["sos", "man_down"].includes(String((v.safety as { state?: string } | undefined)?.state));
 
 const ROLE_COLOR: Record<string, RGBA> = {
   needs_ride: COLORS.fire,
@@ -350,27 +376,21 @@ export default function MapView(p: MapViewProps) {
       getLineWidth: 1.5,
       lineWidthUnits: "pixels",
     }),
-    new ScatterplotLayer<Doc>({
+    new IconLayer<Doc>({
       id: "vehicles",
       data: p.vehicles.filter((v) => lonlat(v)),
       getPosition: (v) => lonlat(v)!,
-      getRadius: 8,
-      radiusUnits: "pixels",
-      getFillColor: (v) =>
-        (v.safety as { state?: string } | undefined)?.state === "sos" ||
-        (v.safety as { state?: string } | undefined)?.state === "man_down"
-          ? COLORS.fire
-          : COLORS.vehicle,
-      stroked: true,
-      getLineColor: (v) => (v.status === "offered" ? COLORS.help : ink),
-      getLineWidth: 2,
-      lineWidthUnits: "pixels",
-      pickable: true,
-      transitions: { getPosition: 900 },
-      updateTriggers: {
-        getFillColor: p.vehicles.map((v) => (v.safety as { state?: string } | undefined)?.state),
-        getLineColor: [theme, p.vehicles.map((v) => v.status)],
+      getIcon: (v) => {
+        const key = `${isVan(v) ? "van" : "car"}${inDanger(v) ? "Alert" : ""}` as keyof typeof VEHICLE_ICONS;
+        return { id: key, url: VEHICLE_ICONS[key], width: 64, height: 96, anchorY: 48, mask: false };
       },
+      getSize: (v) => (isVan(v) ? 40 : 34),
+      sizeUnits: "pixels",
+      getAngle: (v) => -Number(v.heading ?? 0), // heading: clockwise from north; deck: counter-clockwise
+      billboard: false,
+      pickable: true,
+      transitions: { getPosition: 900, getAngle: 400 },
+      updateTriggers: { getIcon: p.vehicles.map((v) => `${v.kind}|${inDanger(v)}`) },
     }),
     new TextLayer<Doc>({
       id: "vehicle-names",
@@ -379,7 +399,7 @@ export default function MapView(p: MapViewProps) {
       getText: (v) => String(v.driverName ?? v.id),
       getSize: 12,
       getColor: ink,
-      getPixelOffset: [0, -18],
+      getPixelOffset: [0, -26],
       fontWeight: 600,
       outlineWidth: 3,
       outlineColor: halo,

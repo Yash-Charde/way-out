@@ -105,7 +105,7 @@ async def test_solve_proposes_for_every_reachable_rider(db):
     res = await loop.solve_once(db)
     assert res["version"] == 1 and res["created"] == res["proposals"] > 0
     plan = await db.plans.find_one({"version": 1})
-    assert plan["solver"] == "greedy" and plan["solveMs"] >= 0
+    assert plan["solver"] == "batched" and plan["solveMs"] >= 0
 
     fleet = [v async for v in db.vehicles.find({})]
 
@@ -220,7 +220,7 @@ async def test_m1_flow_over_http(client, db):
     assert (await client.post(f"/assignments/{first['id']}/approve")).status_code == 200
     req = await db.requests.find_one({"_id": first["requestId"]})
     assert req["status"] == "approved"
-    assert (await client.post("/plans/solve")).json()["requested"] == "greedy"
+    assert (await client.post("/plans/solve")).json()["requested"] == "batched"
 
 
 async def test_duplicate_proposals_for_one_request_are_cleaned_up(db):

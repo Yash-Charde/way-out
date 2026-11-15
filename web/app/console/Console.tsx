@@ -182,17 +182,14 @@ export function Console() {
   const [drawing, setDrawing] = useState<LonLat[] | null>(null);
   const [panels, setPanels] = useState(true);
   const [fireView, setFireView] = useState<FireView | null>(null);
-  const [fireLive, setFireLive] = useState(true);
   // Which world is loaded (Phoenix metro or Oak Creek Canyon): frames the map and names the KPI strip.
   const [scn, setScn] = useState<{ name: string; title: string; bounds: [[number, number], [number, number]] } | null>(null);
   const loadScenario = useCallback(() => {
     api.scenario().then(setScn).catch(() => undefined);
   }, []);
   useEffect(() => loadScenario(), [loadScenario]);
-  const onFire = useCallback((f: FireView | null, live: boolean) => {
-    setFireView(f);
-    setFireLive(live);
-  }, []);
+  // `live` (following now vs scrubbing) doesn't matter here: the map draws whatever time the replay shows.
+  const onFire = useCallback((f: FireView | null) => setFireView(f), []);
 
   const loadStatics = useCallback(async () => {
     try {
@@ -262,12 +259,14 @@ export function Console() {
     () => statics.zones.map((z) => ({ ...z, ...(liveZones[z.id] ? { status: liveZones[z.id].status } : {}) })),
     [statics.zones, liveZones],
   );
-  // Scrubbing the fire replay: zones show what the fire would make them then (the real status is untouched).
+  // Zone outlines follow the fire on the map: neutral until the fire touches a zone, amber once it does,
+  // red once it reaches the zone's homes (live, or as of the replay time when scrubbing). An evacuation order
+  // given before the fire gets there (TinyFish, a dispatcher) shows in the zone chips, not as a red outline.
   const mapZones = useMemo(() => {
-    if (fireLive || !fireView?.zones) return zones;
+    if (!fireView?.zones) return zones;
     const lv = Object.fromEntries(fireView.zones.map((z) => [z.zoneId, z.level]));
-    return zones.map((z) => (lv[z.id] ? { ...z, status: lv[z.id] } : z));
-  }, [zones, fireLive, fireView]);
+    return zones.map((z) => ({ ...z, status: lv[z.id] ?? "ready" }));
+  }, [zones, fireView]);
   const hazards = useMemo(
     () => Object.values({ ...Object.fromEntries(statics.hazards.map((h) => [h.id, h])), ...liveHazards }),
     [statics.hazards, liveHazards],
@@ -672,6 +671,28 @@ export function Console() {
           }
         >
           {busy === "Solve" ? "Solving…" : "Solve now"}
+        </button>
+        <button
+          className="btn min-h-8"
+          disabled={!!busy}
+          title="Fresh world, every home answered, auto-approve + stand-in drivers on, 10× speed: watch the cars drive"
+          onClick={() =>
+            run(
+              "Drive test",
+              async () => {
+                const r = await api.driveTest(10);
+                await resync();
+                setStandIns((await api.simControl()).standIns);
+                return r;
+              },
+              (r) => {
+                const d = r as { plan: { proposals: number }; metersPerSecond: number };
+                return `Drive test: ${d.plan.proposals} pickups, cars move ${d.metersPerSecond} m every second (SIM)`;
+              },
+            )
+          }
+        >
+          {busy === "Drive test" ? "Starting…" : "Drive test"}
         </button>
         <span className="h-5 w-px bg-line" />
         <Toggle
