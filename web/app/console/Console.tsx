@@ -307,13 +307,25 @@ export function Console() {
           </button>
           <span className="mx-1 h-5 w-px bg-line" />
           <SimBadge />
-          <button className={BTN} disabled={!!busy} onClick={() => run("Seed", () => api.seed(), () => "Seeded 200 homes (SIM)")}>
+          <button className={BTN} disabled={!!busy} onClick={() => run(
+                  "Seed",
+                  async () => {
+                    const r = await api.seed();
+                    await resync(); // the old world's homes, requests and offers leave the screen
+                    return r;
+                  },
+                  () => "Seeded 200 homes (SIM)",
+                )}>
             Seed
           </button>
           <button
             className={BTN}
             disabled={!!busy}
-            onClick={() => run("Census", () => api.census(), (r) => `${(r as { requests: number }).requests} ride requests (SIM)`)}
+            onClick={() => run("Census", async () => {
+                  const r = await api.census();
+                  await resync();
+                  return r;
+                }, (r) => `${(r as { requests: number }).requests} ride requests (SIM)`)}
           >
             Instant census
           </button>

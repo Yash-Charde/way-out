@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from api.core.db import get_db
 from api.core.util import utcnow
-from api.dispatch.loop import request_replan, sim_control
+from api.dispatch.loop import request_replan, sim_control, world_lock
 from api.sim import seed as sim_seed
 
 router = APIRouter(prefix="/sim", tags=["sim"])
@@ -24,9 +24,10 @@ async def seed(
     firstArrivalMin: float = Query(default=90, ge=5, description="minutes until the fire reaches the first home"),
 ) -> dict:
     """Replace the simulated world: ~200 homes, 8 vehicles, 2 shelters, 2 zones. Real households stay."""
-    result = await sim_seed.seed(
-        get_db(), scenario=scenario, homes=homes, rng_seed=seed, census=census, first_arrival_min=firstArrivalMin
-    )
+    async with world_lock:  # never while a solve is writing offers
+        result = await sim_seed.seed(
+            get_db(), scenario=scenario, homes=homes, rng_seed=seed, census=census, first_arrival_min=firstArrivalMin
+        )
     request_replan()
     return result
 
@@ -34,7 +35,8 @@ async def seed(
 @router.post("/census")
 async def census() -> dict:
     """Answer every simulated home that hasn't been reached, from its persona (skips the calls)."""
-    made = await sim_seed.instant_census(get_db())
+    async with world_lock:
+        made = await sim_seed.instant_census(get_db())
     request_replan()
     return {"requests": made, "simulated": True}
 

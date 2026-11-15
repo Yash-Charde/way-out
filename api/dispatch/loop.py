@@ -33,6 +33,9 @@ BUSY_EVERY_S, IDLE_EVERY_S = 5.0, 30.0
 ETA_QUIET_DELTA_MIN = 1.0
 
 _lock = asyncio.Lock()
+# Held by solve_once and by /sim/seed + /sim/census, so a solve never writes offers for a world
+# that a reseed is deleting underneath it.
+world_lock = _lock
 _wake = asyncio.Event()
 
 
@@ -75,7 +78,15 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime, *, replan
 
     live = [a async for a in db.assignments.find({"status": {"$in": ["proposed", "offered", "accepted"]}})]
     committed_req_ids = {a["requestId"] for a in live if a["status"] in ("offered", "accepted")}
-    proposed = {a["requestId"]: a for a in live if a["status"] == "proposed"}
+    proposed: dict[str, dict[str, Any]] = {}
+    extra_proposals: list[dict[str, Any]] = []  # more than one proposal for a request: keep the newest
+    for a in sorted(
+        (a for a in live if a["status"] == "proposed"), key=lambda a: a.get("planVersion") or 0, reverse=True
+    ):
+        if a["requestId"] in proposed:
+            extra_proposals.append(a)
+        else:
+            proposed[a["requestId"]] = a
 
     reqs = [
         r
@@ -172,6 +183,7 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime, *, replan
             if cur:
                 replace.append(cur)
     replace += [a for rid, a in proposed.items() if rid not in wanted]
+    replace += extra_proposals
 
     version = None
     if create or replace:

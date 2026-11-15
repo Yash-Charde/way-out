@@ -102,7 +102,18 @@ export const useLive = create<LiveState>((set, get) => ({
       ...(hz.status === "fulfilled" && { hazards: byId(hz.value.hazards) }),
       ...(pl.status === "fulfilled" && {
         plan: pl.value.plan,
-        assignments: { ...get().assignments, ...byId(pl.value.assignments) },
+        // Replace, don't merge: offers from a reseeded-away world must disappear. Keep accepted runs
+        // (the API only lists proposed/offered) while their request is still open.
+        assignments: {
+          ...Object.fromEntries(
+            Object.entries(get().assignments).filter(
+              ([, a]) =>
+                a.status === "accepted" &&
+                (rq.status !== "fulfilled" || rq.value.some((r) => r.id === a.requestId)),
+            ),
+          ),
+          ...byId(pl.value.assignments),
+        },
       }),
     });
   },
