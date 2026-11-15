@@ -3,7 +3,7 @@
 /**
  * Kiosk: a visitor picks a house, enters their phone number, and Way Out calls them as that
  * resident. The call is the real agent; the transcript and record fill in here as they talk.
- * The map is the lightweight house picker (HomeMap), not the console map.
+ * The map is the lightweight house picker (HomeMap: an SVG map of the canyon), not the console map.
  */
 import { useEffect, useMemo, useState } from "react";
 import { SimBadge } from "@/components/Shell";
@@ -45,6 +45,21 @@ export default function Kiosk() {
   useEffect(() => connect(), [connect]);
   const households = useLive((s) => s.households);
   const liveTurns = useLive((s) => s.turns);
+  const liveZones = useLive((s) => s.zones);
+
+  // Map context: zone outlines, shelters, closures (same source as the console). Live zone status wins.
+  type Doc = { id: string } & Record<string, unknown>;
+  const [statics, setStatics] = useState<{ zones: Doc[]; shelters: Doc[]; closures: Doc[] }>({ zones: [], shelters: [], closures: [] });
+  useEffect(() => {
+    api
+      .hazards()
+      .then((h) => setStatics({ zones: h.zones ?? [], shelters: h.shelters ?? [], closures: h.closures }))
+      .catch(() => undefined);
+  }, []);
+  const zones = useMemo(
+    () => statics.zones.map((z) => (liveZones[z.id] ? { ...z, status: liveZones[z.id].status } : z)),
+    [statics.zones, liveZones],
+  );
 
   const homes = useMemo(() => Object.values(households) as unknown as Home[], [households]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -92,7 +107,14 @@ export default function Kiosk() {
               backgroundSize: "48px 48px",
             }}
           />
-          <HomeMap homes={homes} selected={selected} onSelect={(id) => (callId ? null : setSelected(id))} />
+          <HomeMap
+            homes={homes}
+            selected={selected}
+            onSelect={(id) => (callId ? null : setSelected(id))}
+            zones={zones}
+            shelters={statics.shelters}
+            closures={statics.closures}
+          />
           <div className="pointer-events-none absolute top-4 left-4 flex items-center gap-2">
             <span className="glass flex items-center gap-2 rounded-full! px-3 py-1.5 text-xs text-muted">
               <SimBadge /> Oak Creek Canyon · other homes are simulated

@@ -69,10 +69,30 @@ function Avatar({ name, size = "h-11 w-11 text-sm" }: { name: string; size?: str
   );
 }
 
+/** Back to the rest of the app: the driver screen has no nav pill (phone first). */
+function HomeButton() {
+  return (
+    <Link
+      href="/"
+      aria-label="Home: back to the other screens"
+      title="Home"
+      className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-panel text-ink shadow-sm transition-colors hover:bg-panel-2"
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M3 10.5 12 3l9 7.5" />
+        <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5" />
+      </svg>
+    </Link>
+  );
+}
+
 function DriverTopBar({ live = true }: { live?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <Wordmark href="/driver" />
+      <div className="flex items-center gap-2.5">
+        <HomeButton />
+        <Wordmark href="/driver" />
+      </div>
       <div className="flex items-center gap-2">
         {live ? <LiveChip /> : <ThemeToggle />}
       </div>
