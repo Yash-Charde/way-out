@@ -16,6 +16,7 @@ Timeline (minutes from the warning, i.e. when the world was seeded):
 Scenario input, not a forecast. Everything here is simulated.
 """
 
+import asyncio
 import math
 import random
 from collections.abc import Callable
@@ -29,6 +30,7 @@ from api.dispatch import batch, greedy
 from api.hazard import fire, spread
 from api.sim import world
 
+SAMPLE_M = 250.0  # how finely a path is checked against the fire (the head moves 60 m a minute)
 CALL_MIN = 5.0  # every home is called at once; the answers are in by minute 5
 LEAVE_SPREAD_MIN = 20.0
 FIRE_FRAME_MIN = 5.0
@@ -61,13 +63,16 @@ def _burned_m(seq: list[LonLat], t: float, total: float, fire_at: FireAt | None)
     """Meters of this path driven where the fire has already arrived (sampled every ~60 m)."""
     if fire_at is None:
         return 0.0
+    # Done before the fire has started anywhere: nothing to check (most early trips).
+    if t + total < getattr(fire_at, "earliest", -math.inf):
+        return 0.0
     from api.sim.geo import meters
 
     legs = [(p, q, meters(p, q)) for p, q in zip(seq, seq[1:], strict=False)]
     whole = sum(d for _, _, d in legs) or 1.0
     bad, done = 0.0, 0.0
     for p, q, d in legs:
-        n = max(1, int(d / 60))
+        n = max(1, int(d / SAMPLE_M))
         for i in range(n):
             f = (i + 0.5) / n
             pt = (p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f)
@@ -98,14 +103,19 @@ def _route(net: Any, a: LonLat, b: LonLat, t: float, fire_at: FireAt | None) -> 
     if not net.barriers:
         for p in net._l_paths(xy(a), xy(b)):
             options.append(([a, lonlat(p[1]), b], direct))
-        if fire_at is not None:
-            for west in (min(a[0], b[0]) - 0.006, min(a[0], b[0]) - 0.02, WEST_DETOUR_LON):
-                seq = [a, (west, a[1]), (west, b[1]), b]
-                options.append((seq, drive_min(sum(manhattan_m(p, q) for p, q in zip(seq, seq[1:], strict=False)))))
     else:
         p = net.route_xy(xy(a), xy(b)) or [xy(a), xy(b)]
         options.append(([a, *[lonlat(q) for q in p[1:-1]], b], direct))
     scored = [(_burned_m(seq, t, tot, fire_at), tot, seq) for seq, tot in options]
+    clear = [x for x in scored if x[0] == 0]
+    if clear:  # a direct path that stays out of the fire: done (most trips)
+        _, tot, seq = min(clear, key=lambda x: x[1])
+        return seq, tot, 0.0
+    if fire_at is not None and not net.barriers:  # both L paths cross the fire: try detours west
+        for west in (min(a[0], b[0]) - 0.006, min(a[0], b[0]) - 0.02, WEST_DETOUR_LON):
+            seq = [a, (west, a[1]), (west, b[1]), b]
+            tot = drive_min(sum(manhattan_m(p, q) for p, q in zip(seq, seq[1:], strict=False)))
+            scored.append((_burned_m(seq, t, tot, fire_at), tot, seq))
     burned, tot, seq = min(scored, key=lambda x: (x[0] > 0, x[0], x[1]))
     return seq, tot, burned
 
@@ -118,11 +128,15 @@ def _nearest(
     if fire_at is None:
         return min(ok or shelters, key=lambda s: net.travel_min(here, s.loc))
 
-    def cost(s: greedy.Shelter) -> tuple[bool, float]:
+    # Nearest first; the first one reachable without crossing the fire wins (no need to route the rest).
+    best: tuple[tuple[bool, float], greedy.Shelter] | None = None
+    for s in sorted(ok or shelters, key=lambda s: net.travel_min(here, s.loc)):
         _, minutes, burned = _route(net, here, s.loc, t, fire_at)
-        return (burned > 0, minutes)
-
-    return min(ok or shelters, key=cost)
+        if burned == 0:
+            return s
+        if best is None or (True, minutes) < best[0]:
+            best = ((True, minutes), s)
+    return best[1] if best else shelters[0]
 
 
 async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, Any]:
@@ -157,6 +171,8 @@ async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, An
 
     def fire_at_pt(pt: LonLat) -> float:
         return ign_min + fire_minutes(pt, run.ignition, run.wind_from_deg)
+
+    fire_at_pt.earliest = ign_min  # type: ignore[attr-defined]  # nothing burns before ignition
 
     fire_at: dict[str, float | None] = {h["_id"]: minute(h.get("fireArrivalAt")) for h in homes}
     loc = {h["_id"]: tuple(h["location"]["coordinates"]) for h in homes if h.get("location")}
@@ -206,6 +222,7 @@ async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, An
     out_vehicles, out_riders = [], {}
     fire_first: set[str] = set()
     for vi, v in enumerate(vehicles):
+        await asyncio.sleep(0)  # long build: let the API answer other requests between vehicles
         meta = next(x for x in fleet if x["_id"] == v.id)
         here, t = v.loc, CALL_MIN
         path = [[_r(here[0]), _r(here[1]), t]]
@@ -275,7 +292,9 @@ async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, An
     # People driving themselves go to the general shelters; the medical one is kept for riders.
     names = {s["_id"]: str(s.get("name", "")) async for s in db.shelters.find({}, {"name": 1})}
     general = [s for s in shelters if "medical" not in names.get(s.id, "").lower()] or shelters
-    for h in homes:
+    for n_home, h in enumerate(homes):
+        if n_home % 250 == 0:
+            await asyncio.sleep(0)
         hid = h["_id"]
         if hid not in loc:
             continue
