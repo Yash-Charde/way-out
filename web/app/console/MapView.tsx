@@ -143,7 +143,8 @@ export type MapViewProps = {
   onMapClick: (p: LonLat) => void;
   theme?: Theme;
   padding?: Padding; // keeps the canyon clear of the page's panels
-  layersClassName?: string; // where the Map / Terrain / Topo / Satellite switch sits
+  layersClassName?: string; // where the View dropdown (Map / Terrain / Topo / Satellite) sits
+  layersStyle?: React.CSSProperties;
   fire?: FireView | null; // simulated fire replay (GET /hazards/fire)
   bounds?: [[number, number], [number, number]]; // the scenario's box (GET /sim/scenario); default: the canyon
 };
@@ -186,6 +187,13 @@ export default function MapView(p: MapViewProps) {
   }, [p.requests]);
 
   const homeById = useMemo(() => Object.fromEntries(p.households.map((h) => [h.id, h])), [p.households]);
+  // Picked up (on board) or dropped at a shelter: the home turns grey and faint.
+  const picked = useMemo(() => {
+    const out = new Set<string>();
+    for (const r of Object.values(p.requests)) if (r.status === "arrived") out.add(String(r.householdId));
+    for (const h of p.households) if (h.safeAt) out.add(h.id);
+    return out;
+  }, [p.requests, p.households]);
   const vehicleById = useMemo(() => Object.fromEntries(p.vehicles.map((v) => [v.id, v])), [p.vehicles]);
 
   // Lines: proposed/offered = vehicle → home; accepted = the vehicle's run in stop order.
@@ -346,9 +354,12 @@ export default function MapView(p: MapViewProps) {
       id: "homes",
       data: p.households.filter((h) => lonlat(h)),
       getPosition: (h) => lonlat(h)!,
-      getRadius: (h) => (h.role === "needs_ride" ? 6 : 3.5),
+      getRadius: (h) => (h.role === "needs_ride" && !picked.has(h.id) ? 6 : 3.5),
       radiusUnits: "pixels",
-      getFillColor: (h) => ROLE_COLOR[String(h.role)] ?? COLORS.unknown,
+      getFillColor: (h) =>
+        picked.has(h.id)
+          ? [COLORS.unknown[0], COLORS.unknown[1], COLORS.unknown[2], 110]
+          : (ROLE_COLOR[String(h.role)] ?? COLORS.unknown),
       stroked: true,
       getLineColor: (h) =>
         h.id === p.selectedHouseholdId
@@ -363,8 +374,8 @@ export default function MapView(p: MapViewProps) {
       lineWidthUnits: "pixels",
       pickable: true,
       updateTriggers: {
-        getFillColor: p.households.map((h) => h.role),
-        getRadius: p.households.map((h) => h.role),
+        getFillColor: [p.households.map((h) => h.role), picked],
+        getRadius: [p.households.map((h) => h.role), picked],
         getLineColor: [theme, p.selectedHouseholdId, requestByHousehold, p.households.map((h) => h.simulated)],
         getLineWidth: [p.selectedHouseholdId, requestByHousehold, p.households.map((h) => h.simulated)],
       },
@@ -457,12 +468,9 @@ export default function MapView(p: MapViewProps) {
   const onClick = (e: MapLayerMouseEvent) => p.onMapClick([e.lngLat.lng, e.lngLat.lat]);
 
   const layersSwitch = (
-    <BasemapSwitcher
-      vertical
-      value={basemap}
-      onChange={setBasemap}
-      className={p.layersClassName ?? "absolute top-1/2 right-[25.5rem] z-10 -translate-y-1/2"}
-    />
+    <div className={p.layersClassName ?? "absolute top-[4.6rem] right-3"} style={p.layersStyle}>
+      <BasemapSwitcher value={basemap} onChange={setBasemap} />
+    </div>
   );
   if (!style)
     return (

@@ -14,6 +14,7 @@ export function MapLegend({ className = "" }: { className?: string }) {
       {dot("bg-help", "can help")}
       {dot("bg-out", "left")}
       {dot("bg-unknown", "not reached")}
+      {dot("bg-unknown/45", "picked up")}
       {dot("bg-vehicle ring-2 ring-vehicle/30", "vehicle")}
       {dot("bg-sim", "shelter")}
       <span className="flex items-center gap-1.5">

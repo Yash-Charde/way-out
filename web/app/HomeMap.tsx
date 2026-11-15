@@ -112,6 +112,8 @@ export function HomeMap({
   zones = [],
   shelters = [],
   closures = [],
+  pickedUp,
+  selectedLabel,
 }: {
   homes: Home[];
   selected: string | null;
@@ -119,6 +121,8 @@ export function HomeMap({
   zones?: Doc[];
   shelters?: Doc[];
   closures?: Doc[];
+  pickedUp?: Set<string>; // households a driver has picked up (or dropped at a shelter): drawn grey and faint
+  selectedLabel?: string | null; // the address shown in the popup (a typed address wins over the house's)
 }) {
   // Callback ref: the <svg> only exists once homes have arrived, so effects key off the element itself.
   const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
@@ -182,6 +186,22 @@ export function HomeMap({
     },
     [size.w, size.h],
   );
+
+  // A new selection (tap or typed address): zoom in a little and bring the house to the middle.
+  const selLL = useMemo(() => {
+    const h = selected ? pts.find((x) => x.id === selected) : null;
+    return (h?.location?.coordinates as LonLat | undefined) ?? null;
+  }, [selected, pts]);
+  const selKey = selLL ? `${selected}|${selLL[0]}|${selLL[1]}` : null;
+  useEffect(() => {
+    if (!selKey || !selLL || !frame || !fit) return;
+    const [mx, my] = toM(selLL);
+    setView((v) => {
+      const s = Math.max(v.s, 3);
+      return { s, px: -(mx - frame.cx) * fit * s, py: -(my - frame.cy) * fit * s };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the selection itself changes
+  }, [selKey, !!frame, fit > 0]);
 
   useEffect(() => {
     const el = svgEl;
@@ -475,11 +495,18 @@ export function HomeMap({
                       fill="color-mix(in srgb, var(--color-accent) 22%, transparent)"
                     />
                   )}
+                  {isSel && (
+                    <circle cx={x} cy={y} r={DOT_SELECTED + 5} fill="none" stroke="var(--color-accent)" strokeWidth={2}>
+                      <animate attributeName="r" values={`${DOT_SELECTED + 3};${DOT_SELECTED + 16}`} dur="1.4s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.9;0" dur="1.4s" repeatCount="indefinite" />
+                    </circle>
+                  )}
                   <circle
                     cx={x}
                     cy={y}
                     r={isSel ? DOT_SELECTED : DOT}
-                    fill={FILL[h.role ?? ""] ?? "var(--color-unknown)"}
+                    opacity={pickedUp?.has(h.id) && !isSel ? 0.45 : 1}
+                    fill={pickedUp?.has(h.id) ? "var(--color-unknown)" : (FILL[h.role ?? ""] ?? "var(--color-unknown)")}
                     stroke={
                       isSel
                         ? "var(--color-accent)"
@@ -517,6 +544,25 @@ export function HomeMap({
         )}
       </svg>
 
+      {/* the selected house: its address, pinned above the dot */}
+      {sel && fit > 0 && (() => {
+        const [x, y] = P(sel.location!.coordinates as LonLat);
+        if (x < 0 || y < 0 || x > size.w || y > size.h) return null;
+        return (
+          <div
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full animate-rise"
+            style={{ left: x, top: y - 16 }}
+            role="status"
+          >
+            <div className="glass max-w-72 rounded-2xl! px-3.5 py-2.5 text-left">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">Your house</p>
+              <p className="mt-0.5 text-[13px] leading-snug font-medium text-ink">{selectedLabel ?? sel.address}</p>
+            </div>
+            <span className="mx-auto block h-2.5 w-2.5 -translate-y-1.5 rotate-45 border-r border-b border-line bg-panel" />
+          </div>
+        );
+      })()}
+
       {/* north arrow + scale */}
       <div className="pointer-events-none absolute right-4 bottom-4 flex flex-col items-end gap-2">
         {scale && (
@@ -534,6 +580,7 @@ export function HomeMap({
         </span>
       )}
       <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+        <BasemapSwitcher value={basemap} onChange={setBasemap} />
         <div className="glass flex overflow-hidden rounded-full! text-ink">
           {[
             { label: "Zoom in", text: "+", f: 1.6 },
@@ -560,7 +607,6 @@ export function HomeMap({
             Reset
           </button>
         </div>
-        <BasemapSwitcher value={basemap} onChange={setBasemap} />
         <div className="pointer-events-none mr-1 flex flex-col items-center text-muted" aria-hidden>
           <svg viewBox="0 0 24 32" className="h-8 w-6">
             <path d="M12 2 L18 22 L12 18 L6 22 Z" fill="var(--color-ink)" fillOpacity={0.75} />
@@ -576,6 +622,7 @@ export function HomeMap({
           ["var(--color-help)", "can help"],
           ["var(--color-out)", "left"],
           ["var(--color-unknown)", "not reached"],
+          ["color-mix(in srgb, var(--color-unknown) 45%, transparent)", "picked up"],
         ].map(([c, l]) => (
           <span key={l} className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: c }} />

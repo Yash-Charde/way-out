@@ -7,7 +7,7 @@
  * Everything live comes from /live through lib/live.ts; static layers come from GET /hazards.
  */
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapLegend } from "@/components/MapLegend";
 import { SimBadge } from "@/components/Shell";
 import { FireReplay } from "./FireReplay";
@@ -183,6 +183,12 @@ export function Console() {
   const [statics, setStatics] = useState<Statics>({ hazards: [], closures: [], shelters: [], zones: [] });
   const [drawing, setDrawing] = useState<LonLat[] | null>(null);
   const [panels, setPanels] = useState(true);
+  // Side panels: drag their inner edge to resize (remembered in this browser). The map, the replay bar and
+  // the legend follow the gap between them.
+  const [leftW, setLeftW] = usePanelWidth("console.left", 352);
+  const [rightW, setRightW] = usePanelWidth("console.right", 384);
+  const gapLeft = panels ? leftW + 24 : 12;
+  const gapRight = panels ? rightW + 24 : 12;
   const [fireView, setFireView] = useState<FireView | null>(null);
   const [evacOn, setEvacOn] = useState(false); // "Play evacuation": the whole night on the map
   // Which world is loaded (North Scottsdale or Oak Creek Canyon): frames the map and names the KPI strip.
@@ -391,6 +397,8 @@ export function Console() {
         theme={theme}
         fire={fireView}
         bounds={scn?.bounds}
+        layersClassName="absolute top-[9.6rem] z-10"
+        layersStyle={{ right: gapRight }}
       />
 
       <div className="absolute inset-x-3 top-3 z-20">
@@ -399,8 +407,10 @@ export function Console() {
 
       {/* KPI strip: the census at a glance, between the two panels. */}
       <div
-        className={`${PANEL} absolute top-[4.6rem] left-1/2 hidden -translate-x-1/2 items-center divide-x divide-line px-1.5 py-1.5 min-[1200px]:flex`}
+        className="pointer-events-none absolute top-[4.6rem] z-10 hidden justify-center min-[1200px]:flex"
+        style={{ left: gapLeft, right: gapRight }}
       >
+      <div className={`${PANEL} pointer-events-auto flex max-w-full items-center divide-x divide-line overflow-hidden px-1.5 py-1.5`}>
         <span className="eyebrow hidden px-3 xl:inline-flex">
           {scn?.name === "scottsdale-fire" ? "North Scottsdale" : "Oak Creek Canyon"}
         </span>
@@ -410,6 +420,7 @@ export function Console() {
         <Stat label="coming" value={counts.coming} />
         <Stat label="on a van" value={counts.onVan} tone="text-vehicle" />
         <Stat label="safe" value={counts.out} tone="text-out" />
+      </div>
       </div>
 
       {alert && (
@@ -440,7 +451,11 @@ export function Console() {
       )}
 
       {panels && (
-        <section className={`${PANEL} absolute top-[4.6rem] bottom-[4.25rem] left-3 flex w-[22rem] flex-col`}>
+        <section
+          className={`${PANEL} absolute top-[4.6rem] bottom-[4.25rem] left-3 flex flex-col`}
+          style={{ width: leftW }}
+        >
+          <ResizeHandle side="right" width={leftW} onWidth={setLeftW} label="Resize the requests panel" />
           {/* Narrow screens: the census strip lives here instead of between the panels. */}
           <div className="grid grid-cols-6 border-b border-line py-2 min-[1200px]:hidden">
             <Stat label="homes" value={counts.homes} />
@@ -505,7 +520,11 @@ export function Console() {
       )}
 
       {panels && (
-        <aside className="absolute top-[4.6rem] right-3 bottom-[4.25rem] z-10 flex w-[24rem] flex-col gap-3">
+        <aside
+          className="absolute top-[4.6rem] right-3 bottom-[4.25rem] z-10 flex flex-col gap-3"
+          style={{ width: rightW }}
+        >
+          <ResizeHandle side="left" width={rightW} onWidth={setRightW} label="Resize the plan panel" />
           <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
             <PanelTitle
               aside={
@@ -904,9 +923,8 @@ export function Console() {
 
       {/* Fire replay: above the legend, between the side panels. */}
       <div
-        className={`pointer-events-none absolute bottom-[7rem] z-10 flex justify-center ${
-          panels ? "right-[25.5rem] left-[23.5rem]" : "right-3 left-3"
-        }`}
+        className="pointer-events-none absolute bottom-[7rem] z-10 flex justify-center"
+        style={{ left: gapLeft, right: gapRight }}
       >
         {evacOn ? (
           <EvacuationPlayer onClose={() => setEvacOn(false)} className="pointer-events-auto w-full max-w-[44rem]" />
@@ -930,10 +948,83 @@ export function Console() {
         </div>
       )}
       {panels && (
-        <div className="pointer-events-none absolute right-[25.5rem] bottom-[4.25rem] left-[23.5rem] z-10 flex justify-center">
+        <div
+          className="pointer-events-none absolute bottom-[4.25rem] z-10 flex justify-center"
+          style={{ left: gapLeft, right: gapRight }}
+        >
           <MapLegend className={`${PANEL} pointer-events-auto rounded-full!`} />
         </div>
       )}
     </main>
+  );
+}
+
+/** A panel width in px, remembered in this browser (storage can be missing or blocked: then just state). */
+function usePanelWidth(key: string, initial: number): [number, (w: number) => void] {
+  const [w, setW] = useState(initial);
+  useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem(key));
+      if (v >= 260 && v <= 720) setW(v);
+    } catch {
+      /* no storage: default width */
+    }
+  }, [key]);
+  const set = useCallback(
+    (v: number) => {
+      const c = Math.round(Math.min(720, Math.max(260, v)));
+      setW(c);
+      try {
+        localStorage.setItem(key, String(c));
+      } catch {
+        /* no storage */
+      }
+    },
+    [key],
+  );
+  return [w, set];
+}
+
+/** Drag (or arrow keys) on a panel's inner edge to resize it; double-click resets. */
+function ResizeHandle({
+  side,
+  width,
+  onWidth,
+  label,
+}: {
+  side: "left" | "right";
+  width: number;
+  onWidth: (w: number) => void;
+  label: string;
+}) {
+  const start = useRef<{ x: number; w: number } | null>(null);
+  const sign = side === "right" ? 1 : -1;
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      aria-valuenow={width}
+      aria-valuemin={260}
+      aria-valuemax={720}
+      tabIndex={0}
+      title="Drag to resize · double-click to reset"
+      onPointerDown={(e) => {
+        start.current = { x: e.clientX, w: width };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => start.current && onWidth(start.current.w + sign * (e.clientX - start.current.x))}
+      onPointerUp={() => (start.current = null)}
+      onDoubleClick={() => onWidth(side === "right" ? 352 : 384)}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft") onWidth(width - sign * 24);
+        if (e.key === "ArrowRight") onWidth(width + sign * 24);
+      }}
+      className={`group absolute top-1/2 z-20 flex h-16 w-3 -translate-y-1/2 cursor-col-resize items-center justify-center outline-none ${
+        side === "right" ? "-right-1.5" : "-left-1.5"
+      }`}
+    >
+      <span className="h-10 w-1 rounded-full bg-line-strong transition-colors group-hover:bg-accent group-focus-visible:bg-accent" />
+    </div>
   );
 }

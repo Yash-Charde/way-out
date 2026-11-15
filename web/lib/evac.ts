@@ -82,6 +82,7 @@ export function evacLayers(data: Evacuation, prep: Prepared, m: number, idPrefix
     else if (m < s.arrive) movers.push({ path: slice(s.path, Math.max(s.leave, m - SELF_TRAIL_MIN), m) });
   }
   const waiting = data.riders.filter((r) => r[2] == null || r[2] > m);
+  const picked = data.riders.filter((r) => r[2] != null && r[2] <= m);
   const vehicles = prep.vehicles.map((v) => {
     let load = 0;
     for (const [t, n] of v.loads) if (t <= m) load = n;
@@ -124,6 +125,14 @@ export function evacLayers(data: Evacuation, prep: Prepared, m: number, idPrefix
       getWidth: 1.5,
       widthUnits: "pixels",
       capRounded: true,
+    }),
+    new ScatterplotLayer<Evacuation["riders"][number]>({
+      id: `${idPrefix}-picked`,
+      data: picked,
+      getPosition: (d) => [d[0], d[1]],
+      getRadius: 2.6,
+      radiusUnits: "pixels",
+      getFillColor: [148, 163, 184, 120], // picked up: grey and faint (the person is in the vehicle)
     }),
     new ScatterplotLayer<Evacuation["riders"][number]>({
       id: `${idPrefix}-waiting`,

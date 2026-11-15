@@ -125,6 +125,15 @@ function SeatsCard({ seats }: { seats: Seats }) {
           {full ? "Full: new riders go to the next driver" : `${seats.left} of ${seats.capacity} left`}
         </span>
       </div>
+      {seats.capacity > 12 ? (
+        <div className="relative mt-3 h-4 overflow-hidden rounded-full border border-line bg-panel-2" aria-hidden>
+          <span className="absolute inset-y-0 left-0 bg-accent" style={{ width: `${(seats.used / seats.capacity) * 100}%` }} />
+          <span
+            className="absolute inset-y-0 border-l border-dashed border-accent bg-accent/20"
+            style={{ left: `${(seats.used / seats.capacity) * 100}%`, width: `${(seats.offered / seats.capacity) * 100}%` }}
+          />
+        </div>
+      ) : (
       <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-hidden>
         {Array.from({ length: seats.capacity }, (_, i) => {
           const taken = i < seats.used;
@@ -137,6 +146,7 @@ function SeatsCard({ seats }: { seats: Seats }) {
           );
         })}
       </div>
+      )}
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
         {seats.wheelchair > 0 && (
           <span>

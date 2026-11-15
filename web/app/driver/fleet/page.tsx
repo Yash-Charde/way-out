@@ -63,12 +63,30 @@ function diff(prev: DriverRun | undefined, next: DriverRun, now: number): Omit<N
   return out;
 }
 
+/** Seats on this trip. Up to 12 seats: one square each (wrapping inside the card); a bus gets a bar. */
 function SeatSquares({ run }: { run: DriverRun }) {
   const seats = run.seats;
   if (!seats) return null;
+  const label = seats.left === 0 ? "full" : `${seats.left}/${seats.capacity} seats left`;
+  if (seats.capacity > 12) {
+    const used = (seats.used / seats.capacity) * 100;
+    const held = (seats.offered / seats.capacity) * 100;
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="relative h-3.5 min-w-0 flex-1 overflow-hidden rounded-full border border-line bg-panel-2" aria-hidden>
+          <span className="absolute inset-y-0 left-0 bg-accent" style={{ width: `${used}%` }} />
+          <span
+            className="absolute inset-y-0 border-l border-dashed border-accent bg-accent/20"
+            style={{ left: `${used}%`, width: `${held}%` }}
+          />
+        </div>
+        <span className={`shrink-0 text-xs font-medium ${seats.left === 0 ? "text-help" : "text-muted"}`}>{label}</span>
+      </div>
+    );
+  }
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex gap-1" aria-hidden>
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <div className="flex flex-wrap gap-1" aria-hidden>
         {Array.from({ length: seats.capacity }, (_, i) => (
           <span
             key={i}
@@ -82,9 +100,7 @@ function SeatSquares({ run }: { run: DriverRun }) {
           />
         ))}
       </div>
-      <span className={`text-xs font-medium ${seats.left === 0 ? "text-help" : "text-muted"}`}>
-        {seats.left === 0 ? "full" : `${seats.left}/${seats.capacity} seats left`}
-      </span>
+      <span className={`text-xs font-medium ${seats.left === 0 ? "text-help" : "text-muted"}`}>{label}</span>
     </div>
   );
 }
@@ -115,7 +131,7 @@ function DriverCard({
 
   return (
     <article
-      className={`card flex flex-col gap-3 rounded-3xl! p-4 transition-shadow ${
+      className={`card flex min-w-0 flex-col gap-3 overflow-hidden rounded-3xl! p-4 transition-shadow ${
         flash ? "animate-rise shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_45%,transparent)]" : ""
       }`}
     >
@@ -136,7 +152,7 @@ function DriverCard({
           Open
         </Link>
       </header>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-2">
         <span className={`text-sm font-semibold ${state.tone}`}>{state.text}</span>
         <SeatSquares run={run} />
       </div>

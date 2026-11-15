@@ -8,10 +8,10 @@
  * The map is the lightweight house picker (HomeMap: an SVG map of the canyon), not the console map.
  */
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SimBadge } from "@/components/Shell";
 import { AppHeader, Arrow } from "@/components/ui";
-import { ApiError, api, type HouseholdRecord, type Place } from "@/lib/api";
+import { ApiError, SCENARIOS, api, type HouseholdRecord, type Place, type Scenario } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { recordRows } from "../calls/format";
 import { HomeMap, type Home } from "../HomeMap";
@@ -57,19 +57,54 @@ export default function Kiosk() {
   const households = useLive((s) => s.households);
   const liveTurns = useLive((s) => s.turns);
   const liveZones = useLive((s) => s.zones);
-  const [place, setPlace] = useState("Oak Creek Canyon");
-  const [bounds, setBounds] = useState<[[number, number], [number, number]] | null>(null);
-  useEffect(() => {
-    api
-      .scenario()
-      .then((s) => {
-        setPlace(s.name === "scottsdale-fire" ? "North Scottsdale" : "Oak Creek Canyon");
-        setBounds(s.bounds);
-      })
-      .catch(() => undefined);
-  }, []);
+  const [selected, setSelected] = useState<string | null>(null);
   // The visitor's own address (optional): the nearest home on the map becomes theirs and moves there.
   const [myPlace, setMyPlace] = useState<Place | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [world, setWorld] = useState<Scenario | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [bounds, setBounds] = useState<[[number, number], [number, number]] | null>(null);
+  const loadWorld = useCallback(async () => {
+    try {
+      const s = await api.scenario();
+      setWorld(s.name as Scenario);
+      setBounds(s.bounds);
+      return s.name as Scenario;
+    } catch {
+      return null;
+    }
+  }, []);
+  // Build a world (homes, fleet, fire, census answers) and redraw. Used when the visitor picks another world,
+  // and when the loaded one has no homes yet, so the map is never empty.
+  const seedWorld = useCallback(
+    async (scenario: Scenario) => {
+      setSeeding(true);
+      setSelected(null);
+      setMyPlace(null);
+      try {
+        await api.seed({ scenario, census: "instant" });
+        await loadWorld();
+        await useLive.getState().resync();
+      } catch {
+        setError("Couldn't build the world. Try again in a moment.");
+      } finally {
+        setSeeding(false);
+      }
+    },
+    [loadWorld],
+  );
+  useEffect(() => {
+    let off = false;
+    (async () => {
+      const name = await loadWorld();
+      if (off || !name) return;
+      const homesNow = await api.households().catch(() => null);
+      if (!off && homesNow && homesNow.length === 0) await seedWorld(name);
+    })();
+    return () => {
+      off = true;
+    };
+  }, [loadWorld, seedWorld]);
 
   // Map context: zone outlines, shelters, closures (same source as the console). Live zone status wins.
   type Doc = { id: string } & Record<string, unknown>;
@@ -90,10 +125,16 @@ export default function Kiosk() {
   );
 
   const homes = useMemo(() => Object.values(households) as unknown as Home[], [households]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const liveRequests = useLive((s) => s.requests);
+  // Picked up (on board) or already dropped at a shelter: drawn grey and faint.
+  const pickedUp = useMemo(() => {
+    const out = new Set<string>();
+    for (const r of Object.values(liveRequests)) if (r.status === "arrived") out.add(String(r.householdId));
+    for (const h of Object.values(households)) if ((h as Record<string, unknown>).safeAt) out.add(h.id);
+    return out;
+  }, [liveRequests, households]);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [callId, setCallId] = useState<string | null>(null);
   const [driver, setDriver] = useState<{ vehicleId: string; driverUrl: string; driverName: string } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -185,14 +226,31 @@ export default function Kiosk() {
             homes={homes}
             selected={selected}
             onSelect={pickHouse}
+            pickedUp={pickedUp}
+            selectedLabel={myPlace?.address ?? null}
             zones={zones}
             shelters={statics.shelters}
             closures={statics.closures}
           />
-          <div className="pointer-events-none absolute top-4 left-4 flex items-center gap-2">
-            <span className="glass flex items-center gap-2 rounded-full! px-3 py-1.5 text-xs text-muted">
-              <SimBadge /> {place} · other homes are simulated
-            </span>
+          <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+            <label className="glass flex items-center gap-2 rounded-full! py-1 pr-1.5 pl-3 text-xs text-muted">
+              <SimBadge />
+              <span className="sr-only">World</span>
+              <select
+                value={world ?? ""}
+                disabled={seeding || !!callId || !!driver}
+                onChange={(e) => void seedWorld(e.target.value as Scenario)}
+                className="rounded-full bg-transparent py-1 pr-1 text-xs font-medium text-ink outline-none"
+                aria-label="Pick a world (rebuilds the simulated homes)"
+              >
+                {SCENARIOS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <span className="pr-1.5">{seeding ? "building the world…" : "other homes are simulated"}</span>
+            </label>
           </div>
         </section>
 
