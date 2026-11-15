@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Arrow } from "@/components/ui";
 import { Hero } from "./landing/Hero";
 import { Section, SiteFooter, SiteHeader } from "./landing/Site";
+import { TechMarquee } from "./landing/TechMarquee";
 
 export const metadata: Metadata = {
   title: { absolute: "Way Out: everyone gets a way out of a wildfire" },
@@ -285,6 +286,7 @@ export default function Landing() {
             </Link>
           </div>
         </section>
+        <TechMarquee />
       </main>
       <SiteFooter />
     </>
