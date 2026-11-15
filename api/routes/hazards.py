@@ -39,8 +39,9 @@ async def fire_view(
     when = at or utcnow()
     # Every open console asks every 5 s; the answer only moves with the clock. One computation per 10 s of
     # replay time, kept for 8 s, serves them all (it was ~10 s of work per call at city scale).
-    run = await get_db().hazards.find_one({"_id": fire.RUN_ID}, {"runId": 1})
-    key = ((run or {}).get("runId"), int(when.timestamp() // 10))
+    run = await get_db().hazards.find_one({"_id": fire.RUN_ID}, {"runId": 1, "store": 1})
+    run = run or {}
+    key = (run.get("runId"), run.get("store"), int(when.timestamp() // 10))
     hit = _FIRE_CACHE.get(key)
     if hit and time.monotonic() - hit[0] < 8:
         return hit[1]
