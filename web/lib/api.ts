@@ -98,6 +98,8 @@ export const api = {
       `/sim/seed?${new URLSearchParams(Object.entries(opts).map(([k, v]) => [k, String(v)])).toString()}`,
     ),
   census: () => call<{ requests: number }>("POST", "/sim/census"),
+  driveTestStop: () =>
+    call<{ standIns: StandIns; speedup: number; callbacksDropped: number; stopped: boolean }>("POST", "/sim/drive-test/stop"),
   // fresh world + auto-approve + stand-in drivers: watch the fleet drive (speedup × real time)
   driveTest: (speedup = 10) =>
     call<{ plan: { proposals: number; autoApproved: number }; kmhOnScreen: number; metersPerSecond: number }>(
@@ -150,7 +152,7 @@ export type Seats = {
 };
 export type DriverRun = { vehicle: Doc; offers: RunStop[]; run: RunStop[]; shelters: Doc[]; seats?: Seats; now: string };
 
-export type StandIns = { voice: boolean; drivers: boolean; approval: boolean; fireZones: boolean };
+export type StandIns = { voice: boolean; drivers: boolean; approval: boolean; fireZones: boolean; realCalls: boolean };
 
 type Latency = { p50: number | null; p95: number | null; turns: number };
 export type EvalSummary = {

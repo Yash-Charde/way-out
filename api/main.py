@@ -21,6 +21,7 @@ from api.routes import (
     hazards,
     health,
     households,
+    persona,
     plans,
     ride_requests,
     roads,
@@ -43,6 +44,7 @@ ROUTERS = [
     # resident side
     agent,
     calls,
+    persona,
     zones,
     system,
     # responder side

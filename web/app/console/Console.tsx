@@ -174,6 +174,7 @@ export function Console() {
   const [now, setNow] = useState(() => Date.now());
   const [selected, setSelected] = useState(0);
   const [selectedHome, setSelectedHome] = useState<string | null>(null);
+  const [modalRequest, setModalRequest] = useState<string | null>(null); // an open request, shown as a modal
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ id: string; text: string } | null>(null);
@@ -201,7 +202,8 @@ export function Console() {
     const { id, state, lon, lat } = lastSafety.data as { id: string; state: string; lon?: number; lat?: number };
     if (state === "sos" || state === "man_down") {
       const name = String(useLive.getState().vehicles[id]?.driverName ?? id);
-      const where = typeof lat === "number" && typeof lon === "number" ? ` at ${lat.toFixed(4)}, ${lon.toFixed(4)}` : "";
+      const where =
+        typeof lat === "number" && typeof lon === "number" ? ` at ${lat.toFixed(4)}, ${lon.toFixed(4)}` : "";
       setAlert({ id, text: `${state === "sos" ? "SOS" : "MAN DOWN"}: ${name}${where}` });
     } else {
       setAlert((a) => (a?.id === id ? null : a));
@@ -215,7 +217,10 @@ export function Console() {
     return () => clearInterval(t);
   }, []);
   useEffect(() => {
-    api.simControl().then((r) => setStandIns(r.standIns)).catch(() => setStandIns(null));
+    api
+      .simControl()
+      .then((r) => setStandIns(r.standIns))
+      .catch(() => setStandIns(null));
   }, []);
 
   const hh = useMemo(() => Object.values(households), [households]);
@@ -303,7 +308,11 @@ export function Console() {
         return;
       }
       setDrawing(null);
-      void run("Close road", () => api.closeRoad(pts), () => "Road closed. Re-planning now.");
+      void run(
+        "Close road",
+        () => api.closeRoad(pts),
+        () => "Road closed. Re-planning now.",
+      );
     },
     [drawing, run],
   );
@@ -312,7 +321,10 @@ export function Console() {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey) return;
       const k = e.key.toLowerCase();
-      if (k === "escape") setDrawing(null);
+      if (k === "escape") {
+        setDrawing(null);
+        setModalRequest(null);
+      }
       if (k === "j") setSelected((i) => Math.min(i + 1, Math.max(0, offers.length - 1)));
       if (k === "k") setSelected((i) => Math.max(0, i - 1));
       if (k === "a") approve(offers[selected]);
@@ -328,8 +340,23 @@ export function Console() {
         r.householdId,
     );
   const home = selectedHome ? (households[selectedHome] as Doc | undefined) : undefined;
-  const homeRequest = home ? Object.values(requests).find((r) => r.householdId === home.id && r.status !== "closed") : undefined;
+  const homeRequest = home
+    ? Object.values(requests).find((r) => r.householdId === home.id && r.status !== "closed")
+    : undefined;
   const record = (home?.record ?? {}) as Record<string, unknown>;
+  const modalReq = modalRequest ? (requests[modalRequest] as Doc | undefined) : undefined;
+  const modalHome = modalReq ? (households[String(modalReq.householdId)] as Doc | undefined) : undefined;
+  const modalRecord = (modalHome?.record ?? {}) as Record<string, unknown>;
+  const modalRide = modalReq
+    ? Object.values(assignments)
+        .filter((a) => a.requestId === modalReq.id && ["proposed", "offered", "accepted"].includes(String(a.status)))
+        .sort(
+          (a, b) =>
+            ["accepted", "offered", "proposed"].indexOf(String(a.status)) -
+            ["accepted", "offered", "proposed"].indexOf(String(b.status)),
+        )[0]
+    : undefined;
+  const modalVehicle = modalRide ? (vehicles[String(modalRide.vehicleId)] as Doc | undefined) : undefined;
 
   return (
     <main className="relative h-dvh overflow-hidden bg-bg">
@@ -424,7 +451,10 @@ export function Console() {
               return (
                 <li
                   key={r.id}
-                  onClick={() => setSelectedHome(String(r.householdId))}
+                  onClick={() => {
+                    setSelectedHome(String(r.householdId));
+                    setModalRequest(r.id);
+                  }}
                   className={`group relative flex cursor-pointer items-center justify-between gap-3 overflow-hidden rounded-2xl border py-2.5 pr-3 pl-4 transition-all ${
                     active
                       ? "border-accent/50 bg-accent/[0.07] shadow-sm"
@@ -526,43 +556,23 @@ export function Console() {
               })}
             </ul>
           </section>
-          <section className={`${PANEL} scroll-soft max-h-[32%] overflow-y-auto`}>
-            <PanelTitle aside={<span className="text-[11px] text-muted">{Object.keys(vehicles).length} vehicles</span>}>
-              Fleet
-            </PanelTitle>
-            <ul className="flex flex-col gap-1 px-2.5 pb-2.5 text-sm">
-              {Object.values(vehicles).map((v) => {
-                const sos = ["sos", "man_down"].includes(String((v.safety as { state?: string } | undefined)?.state));
-                const busyVan = String(v.status) !== "idle";
-                return (
-                  <li
-                    key={v.id}
-                    className={`flex items-center justify-between rounded-xl px-2.5 py-1.5 ${sos ? "bg-fire/15" : "hover:bg-panel-2"}`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className={`h-1.5 w-1.5 rounded-full ${sos ? "bg-fire" : busyVan ? "bg-vehicle" : "bg-unknown"}`} />
-                      <span className="text-[13px] font-medium">{String(v.driverName)}</span>
-                      <span className="text-[11px] text-muted">{String(v.kind).replace(/_/g, " ")}</span>
-                    </span>
-                    <span className="flex items-center gap-2 text-[11px] text-muted">
-                      {sos ? <span className="font-semibold text-fire">SOS</span> : String(v.status).replace(/_/g, " ")}
-                      {!!v.simulated && <SimBadge />}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
         </aside>
       )}
 
-      {home && (
+      {home && !modalReq && (
         <section
           className={`${PANEL} absolute bottom-[13rem] left-1/2 z-20 w-[27rem] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 animate-rise p-4`}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <span className="eyebrow" style={{ "--eyebrow-dot": home.role === "needs_ride" ? "var(--color-fire)" : undefined } as React.CSSProperties}>
+              <span
+                className="eyebrow"
+                style={
+                  {
+                    "--eyebrow-dot": home.role === "needs_ride" ? "var(--color-fire)" : undefined,
+                  } as React.CSSProperties
+                }
+              >
                 {String(home.role).replace(/_/g, " ")}
               </span>
               <div className="mt-1 text-[15px] font-semibold tracking-[-0.01em]">{String(home.address)}</div>
@@ -589,7 +599,9 @@ export function Console() {
                 <span className="text-muted">Ride</span>
                 <StatusTag status={String(homeRequest.status)} />
                 {homeRequest.escalation ? (
-                  <span className="text-xs font-semibold text-fire">{String(homeRequest.escalation).replace(/_/g, " ")}</span>
+                  <span className="text-xs font-semibold text-fire">
+                    {String(homeRequest.escalation).replace(/_/g, " ")}
+                  </span>
                 ) : null}
               </span>
               <TimeLeft min={minutesLeft(homeRequest.deadlineAt, now)} />
@@ -598,14 +610,126 @@ export function Console() {
         </section>
       )}
 
+      {/* An open request, opened from the list: centered, the map dimmed behind it. */}
+      {modalReq && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(8_12_20/0.32)] p-4"
+          onClick={() => setModalRequest(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="request-modal-title"
+            className={`${PANEL} w-[34rem] max-w-full animate-rise p-5`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <span className="eyebrow" style={{ "--eyebrow-dot": "var(--color-fire)" } as React.CSSProperties}>
+                  Ride request
+                </span>
+                <h2 id="request-modal-title" className="mt-1 text-lg font-semibold tracking-[-0.01em]">
+                  {String(modalHome?.address ?? modalReq.householdId)}
+                </h2>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                  <StatusTag status={String(modalReq.status)} />
+                  {modalReq.escalation ? (
+                    <span className="rounded-full bg-fire px-1.5 py-px text-[10px] font-semibold text-white uppercase">
+                      {String(modalReq.escalation).replace(/_/g, " ")}
+                    </span>
+                  ) : null}
+                  {modalHome?.simulated ? <SimBadge /> : null}
+                </div>
+              </div>
+              <CloseButton onClick={() => setModalRequest(null)} label="Close request" />
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+              <div className="rounded-xl bg-panel-2 px-3 py-2">
+                <div className="text-[10px] tracking-[0.1em] text-muted uppercase">Time left</div>
+                <TimeLeft min={minutesLeft(modalReq.deadlineAt, now)} />
+              </div>
+              <div className="col-span-2 rounded-xl bg-panel-2 px-3 py-2">
+                <div className="text-[10px] tracking-[0.1em] text-muted uppercase">Needs</div>
+                <div className="mt-1">
+                  <NeedIcons need={modalReq.need as Need} />
+                </div>
+              </div>
+            </div>
+
+            <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
+              {(
+                ["peopleCount", "mobility", "assistance", "canLeave", "hasCar", "pets", "oxygen", "language"] as const
+              ).map((k) =>
+                modalRecord[k] === undefined || modalRecord[k] === null ? null : (
+                  <div key={k} className="rounded-xl bg-panel-2 px-3 py-1.5">
+                    <dt className="text-[10px] tracking-[0.1em] text-muted uppercase">
+                      {k.replace(/([A-Z])/g, " $1")}
+                    </dt>
+                    <dd className="text-[13px] font-medium">{String(modalRecord[k]).replace(/_/g, " ")}</dd>
+                  </div>
+                ),
+              )}
+            </dl>
+
+            <div className="mt-3 rounded-xl border border-line px-3 py-2.5 text-sm">
+              {modalRide ? (
+                <span>
+                  <span className="text-muted">
+                    {modalRide.status === "accepted"
+                      ? "Driver"
+                      : modalRide.status === "offered"
+                        ? "Offered to"
+                        : "Proposed"}
+                    :
+                  </span>{" "}
+                  <b>{String(modalVehicle?.driverName ?? modalRide.vehicleId)}</b>
+                  {modalVehicle ? (
+                    <span className="text-muted"> · {String(modalVehicle.kind).replace(/_/g, " ")}</span>
+                  ) : null}
+                  {modalRide.etaMinutes !== undefined ? (
+                    <span className="text-muted"> · ETA {Math.round(Number(modalRide.etaMinutes))} min</span>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="text-muted">
+                  {["driver_accepted", "en_route"].includes(String(modalReq.status))
+                    ? "A driver has accepted and is on the way."
+                    : modalReq.status === "arrived"
+                      ? "Picked up, on the way to the shelter."
+                      : modalReq.status === "approved"
+                        ? "Offered to a driver, waiting for them to accept."
+                        : "No driver yet. The planner offers one within seconds."}
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn min-h-10" onClick={() => setModalRequest(null)}>
+                Show on map
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {/* Bottom dock: the map tool + simulation controls. */}
-      <div className={`${PANEL} absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full! px-2 py-1.5`}>
+      <div
+        className={`${PANEL} absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full! px-2 py-1.5`}
+      >
         <button
           className={`btn min-h-8 ${drawing ? "border-fire/60 text-fire" : ""}`}
           onClick={() => setDrawing((d) => (d ? null : []))}
           title="Click two points on the road. Esc cancels."
         >
-          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <svg
+            viewBox="0 0 24 24"
+            className="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden
+          >
             <path d="M4 20 20 4M9 4l11 11" strokeLinecap="round" />
           </svg>
           {drawing ? (drawing.length ? "Click the second point…" : "Click the first point…") : "Close a road"}
@@ -650,46 +774,83 @@ export function Console() {
           className="btn min-h-8"
           disabled={!!busy}
           onClick={() =>
-            run("Solve", () => api.solve(), (r) => {
-              const s = r as { proposals: number; unservable: number; solveMs: number };
-              return `${s.proposals} offers, ${s.unservable} unservable · ${s.solveMs} ms`;
-            })
-          }
-        >
-          {busy === "Solve" ? "Solving…" : "Solve now"}
-        </button>
-        <button
-          className="btn min-h-8"
-          disabled={!!busy}
-          title="Fresh world, every home answered, auto-approve + stand-in drivers on, 10× speed: watch the cars drive"
-          onClick={() =>
             run(
-              "Drive test",
-              async () => {
-                const r = await api.driveTest(10);
-                await resync();
-                setStandIns((await api.simControl()).standIns);
-                return r;
-              },
+              "Solve",
+              () => api.solve(),
               (r) => {
-                const d = r as { plan: { proposals: number }; metersPerSecond: number };
-                return `Drive test: ${d.plan.proposals} pickups, cars move ${d.metersPerSecond} m every second (SIM)`;
+                const s = r as { proposals: number; unservable: number; solveMs: number };
+                return `${s.proposals} offers, ${s.unservable} unservable · ${s.solveMs} ms`;
               },
             )
           }
         >
-          {busy === "Drive test" ? "Starting…" : "Drive test"}
+          {busy === "Solve" ? "Solving…" : "Solve now"}
         </button>
+        {standIns?.drivers ? (
+          <button
+            className="btn min-h-8 border-fire/50 text-fire"
+            disabled={!!busy}
+            title="Stand-in drivers and auto-approve off, normal speed, nothing queued for a real phone is called"
+            onClick={() =>
+              run(
+                "Stop drive test",
+                async () => {
+                  const r = await api.driveTestStop();
+                  setStandIns(r.standIns);
+                  return r;
+                },
+                () => "Drive test stopped. Real phone calls are off.",
+              )
+            }
+          >
+            <span className="h-2 w-2 rounded-[2px] bg-fire" aria-hidden />
+            {busy === "Stop drive test" ? "Stopping…" : "Stop drive test"}
+          </button>
+        ) : (
+          <button
+            className="btn min-h-8"
+            disabled={!!busy}
+            title="Fresh world, every home answered, auto-approve + stand-in drivers on, 10× speed. Real phones are never called."
+            onClick={() =>
+              run(
+                "Drive test",
+                async () => {
+                  const r = await api.driveTest(10);
+                  await resync();
+                  setStandIns((await api.simControl()).standIns);
+                  return r;
+                },
+                (r) => {
+                  const d = r as { plan: { proposals: number }; metersPerSecond: number };
+                  return `Drive test: ${d.plan.proposals} pickups, cars move ${d.metersPerSecond} m every second (SIM, no real calls)`;
+                },
+              )
+            }
+          >
+            {busy === "Drive test" ? "Starting…" : "Drive test"}
+          </button>
+        )}
         <span className="h-5 w-px bg-line" />
         <Toggle
           label="auto-approve"
           checked={!!standIns?.approval}
-          onChange={(v) => run("Auto-approve", async () => setStandIns((await api.simControl({ approval: v })).standIns))}
+          onChange={(v) =>
+            run("Auto-approve", async () => setStandIns((await api.simControl({ approval: v })).standIns))
+          }
         />
         <Toggle
           label="stand-in drivers"
           checked={!!standIns?.drivers}
-          onChange={(v) => run("Stand-in drivers", async () => setStandIns((await api.simControl({ drivers: v })).standIns))}
+          onChange={(v) =>
+            run("Stand-in drivers", async () => setStandIns((await api.simControl({ drivers: v })).standIns))
+          }
+        />
+        <Toggle
+          label="real phone calls"
+          checked={standIns?.realCalls ?? true}
+          onChange={(v) =>
+            run("Real phone calls", async () => setStandIns((await api.simControl({ realCalls: v })).standIns))
+          }
         />
         <span className="h-5 w-px bg-line" />
         <button className="btn min-h-8" onClick={() => setPanels((v) => !v)}>
@@ -708,7 +869,9 @@ export function Console() {
           onFire={onFire}
           zoneNames={Object.fromEntries(statics.zones.map((z) => [z.id, String(z.name ?? z.id)]))}
           fireZones={standIns?.fireZones ?? true}
-          onFireZones={(v) => run("Fire sets zones", async () => setStandIns((await api.simControl({ fireZones: v })).standIns))}
+          onFireZones={(v) =>
+            run("Fire sets zones", async () => setStandIns((await api.simControl({ fireZones: v })).standIns))
+          }
           className="pointer-events-auto w-full max-w-[40rem]"
         />
       </div>
