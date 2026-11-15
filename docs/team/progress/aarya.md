@@ -19,7 +19,7 @@ can see where you are on `develop` after each merge.
 | A-10 | 5:00–8:30 | Rehearse ×3 | `feat/aarya` | 🟡 prep done | shot list + rehearsal log in `docs/story/expo.md` |
 | A-11 | by 10:00 AM | Final deck, final Devpost with Prem: links (live app, repo, video),… | `feat/aarya` | ⬜ todo | |
 | A-12 | 12:00–2:00 PM | Expo: you tell the story (first 20 seconds) and handle Q&A | `feat/aarya` | 🟡 prep done | expo cheat sheet in `docs/story/expo.md` |
-| A-13 | 3:45–5:15 PM | Go-live accounts (from P-04): Atlas, secrets.env, Vultr VM, domain + DNS, deploy key | `feat/aarya` | 🟡 in progress (late) | #49 · secrets.env + deploy key made locally; accounts next |
+| A-13 | 3:45–5:15 PM | Go-live accounts (from P-04): Atlas, secrets.env, Vultr VM, domain + DNS, deploy key | `feat/aarya` | 🟡 VM up; Atlas + domain left | #49 · Vultr VM `wayout` 45.77.121.104 (LA, Ubuntu 24.04, Docker + ufw done), CI deploy key works; domain → Deep; Atlas URI → Aarya; then `bootstrap-vm.sh` |
 
 ## How to work
 
@@ -36,3 +36,4 @@ can see where you are on `develop` after each merge.
 - Ignition point is approximate (no official coordinates published).
 - A-04: no in-person interview. Responder voices are published, cited quotes (`responders.md`), labeled as such on slides and Devpost.
 - 5:53 PM: #43 merged into `develop` (A-01–A-08). Added the Future of Work paragraph and prize opt-ins to `devpost.md`; Devpost now due **10:00 AM**, Aarya is the only editor.
+- 6:25 PM: Vultr VM `wayout` running at 45.77.121.104 on MLH credit ($20/mo). Docker + firewall installed. CI deploy key (`wayout-ci-deploy`) is on the VM; private half goes to Yash privately. Domain is Deep's (GoDaddy). `bootstrap-vm.sh` runs once the domain and `MONGODB_URI` exist.
