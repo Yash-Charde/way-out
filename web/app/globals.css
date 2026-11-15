@@ -289,6 +289,10 @@ body {
     scrollbar-width: thin;
     scrollbar-color: var(--color-line-strong) transparent;
   }
+  /* Items in a scrolling flex column keep their height and scroll; they never squash and clip. */
+  .scroll-soft > * {
+    flex-shrink: 0;
+  }
 }
 
 /* MapLibre's attribution control, matched to the theme. */

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { AppHeader } from "@/components/ui";
 import { API_URL } from "@/lib/api";
 import { DrillControls, type DrillView } from "./DrillControls";
 
@@ -17,37 +19,75 @@ async function load(zone: string): Promise<DrillView | null> {
   }
 }
 
+async function zones(): Promise<{ id: string; name?: string }[]> {
+  try {
+    const res = await fetch(`${API_URL}/zones`, { cache: "no-store" });
+    return res.ok ? ((await res.json()) as { id: string; name?: string }[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+const shortName = (z: { id: string; name?: string }) => {
+  const n = String(z.name ?? z.id).match(/zone\s*(\d+)/i);
+  return n ? `Zone ${n[1]}` : (z.name ?? z.id);
+};
+
 export default async function Page({ searchParams }: { searchParams: Promise<{ zone?: string }> }) {
   const { zone = "zone_oak_creek_14" } = await searchParams;
-  const view = await load(zone);
+  const [view, all] = await Promise.all([load(zone), zones()]);
   const published = (view?.published ?? "ready").toUpperCase();
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col gap-6 px-5 py-8">
-      <p className="rounded border-2 border-dashed border-help px-3 py-2 text-center text-sm font-bold tracking-wide text-help">
-        WAY OUT DRILL PAGE · NOT AN OFFICIAL COUNTY SITE · FOR TESTING ONLY
-      </p>
+    <>
+      <AppHeader />
+      <main className="mx-auto flex max-w-2xl flex-col gap-6 px-5 py-8">
+        <p className="rounded border-2 border-dashed border-help px-3 py-2 text-center text-sm font-bold tracking-wide text-help">
+          WAY OUT DRILL PAGE · NOT AN OFFICIAL COUNTY SITE · FOR TESTING ONLY
+        </p>
 
-      <section className="flex flex-col gap-1">
-        <p className="text-sm text-muted">Way Out evacuation drill</p>
-        <h1 className="text-2xl font-semibold">{view?.name ?? zone}</h1>
-        {/* TinyFish parses this exact line. Keep the words "Zone status:" and the status word together. */}
-        <p className="mt-3 text-3xl">
-          Zone status: <strong className={published === "READY" || published === "CLEAR" ? "" : "text-help"}>{published}</strong>
-        </p>
-        <p className="text-sm text-muted">
-          Ready means be ready. Set means get set to leave. Go means leave now. This page only publishes a drill status.
-        </p>
-      </section>
+        {all.length > 1 && (
+          <nav aria-label="Zones" className="flex flex-wrap gap-2">
+            {all.map((z) => (
+              <Link
+                key={z.id}
+                href={`/drill?zone=${encodeURIComponent(z.id)}`}
+                aria-current={z.id === zone ? "page" : undefined}
+                className={`rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
+                  z.id === zone
+                    ? "border-accent bg-accent/10 font-medium text-ink"
+                    : "border-line text-muted hover:text-ink"
+                }`}
+              >
+                {shortName(z)}
+              </Link>
+            ))}
+          </nav>
+        )}
 
-      {view ? (
-        <DrillControls zoneId={zone} initial={view} />
-      ) : (
-        <p className="rounded border border-line p-3 text-sm text-muted">
-          Can&apos;t load zone <code>{zone}</code> from the API. Seed the world first (<code>POST /sim/seed</code>) and check
-          that the API is reachable.
-        </p>
-      )}
-    </main>
+        <section className="flex flex-col gap-1">
+          <p className="text-sm text-muted">Way Out evacuation drill</p>
+          <h1 className="text-2xl font-semibold">{view?.name ?? zone}</h1>
+          {/* TinyFish parses this exact line. Keep the words "Zone status:" and the status word together. */}
+          <p className="mt-3 text-3xl">
+            Zone status:{" "}
+            <strong className={published === "READY" || published === "CLEAR" ? "" : "text-help"}>{published}</strong>
+          </p>
+          <p className="text-sm text-muted">
+            Ready means be ready. Set means get set to leave. Go means leave now. This page only publishes a drill
+            status.
+          </p>
+        </section>
+
+        {view ? (
+          <DrillControls zoneId={zone} initial={view} />
+        ) : (
+          <p className="rounded border border-line p-3 text-sm text-muted">
+            Can&apos;t load zone <code>{zone}</code> from the API. Seed the world first (<code>POST /sim/seed</code>)
+            and check that the API is reachable.
+          </p>
+        )}
+      </main>
+    </>
   );
 }
