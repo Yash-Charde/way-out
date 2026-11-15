@@ -24,7 +24,10 @@ Use the PR template (`.github/pull_request_template.md`): what changed, the issu
 changed, and how it was tested.
 
 - Contract changes (`docs/CONTRACT.md`) go in the same PR as the code and are called out in the PR body.
-- Merge with **squash**. Delete the branch after merging.
+- Feature and fix PRs into `develop`: merge with **squash**, then delete the branch.
+- Release PRs (`develop → staging`, `staging → main`): merge with **Create a merge commit**, never squash.
+  Squashed releases copy the changes into new commits, so GitHub reports main as dozens of commits "behind"
+  develop even when the code is identical. `scripts/release.sh` does this for you.
 - Rebase on `develop` before merging if CI is stale.
 
 ## CI/CD (`.github/workflows/`)

@@ -29,10 +29,11 @@ promote() {  # promote <from> <to>
   echo "$url"
   sleep 10  # let CI register its checks on the PR
   gh pr checks "$url" --watch --fail-fast || die "checks failed on $url"
-  # The repo allows squash merges only. main needs 1 approval: --admin works if you're an admin,
+  # Release PRs use a merge commit (not squash) so staging/main stay 0 commits behind develop.
+  # main needs 1 approval: --admin works if you're an admin,
   # otherwise ask another maintainer to approve and this keeps retrying.
   for i in $(seq 1 60); do
-    if gh pr merge "$url" --squash 2>/dev/null || gh pr merge "$url" --squash --admin 2>/dev/null; then break; fi
+    if gh pr merge "$url" --merge 2>/dev/null || gh pr merge "$url" --merge --admin 2>/dev/null; then break; fi
     [ "$i" = 1 ] && echo "can't merge yet (needs an approval?). Ask a maintainer to approve: $url  (retrying for 15 min)"
     [ "$(gh pr view "$url" --json state -q .state)" = "MERGED" ] && break
     sleep 15
