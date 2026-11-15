@@ -8,6 +8,7 @@ import { Mark } from "@/components/ui";
 const LINKS = [
   { href: "/#how", label: "How it works" },
   { href: "/#product", label: "Product" },
+  { href: "/results", label: "Results" },
   { href: "/about", label: "About" },
   { href: "/try", label: "Try it" },
 ];
@@ -69,6 +70,7 @@ export function SiteFooter() {
             ["/calls", "Call floor"],
             ["/driver", "Driver app"],
             ["/system", "System & proof"],
+            ["/results", "Results"],
           ]}
         />
         <FooterCol

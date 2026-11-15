@@ -38,7 +38,7 @@ export function EvacuationPlayer({ onClose, className = "" }: { onClose: () => v
   const [error, setError] = useState<string | null>(null);
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(SPEEDS[1]);
+  const [speed, setSpeed] = useState(SPEEDS[0]); // 2 min/s: the fire and the vehicles at a readable pace
   const setLayers = useEvacLayers((s) => s.set);
   const raf = useRef<number | null>(null);
 

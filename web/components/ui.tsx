@@ -39,6 +39,7 @@ const NAV = [
   { href: "/driver", label: "Driver" },
   { href: "/driver/fleet", label: "Fleet" },
   { href: "/drill", label: "Drill" },
+  { href: "/results", label: "Results" },
   { href: "/try", label: "Try it" },
 ];
 
