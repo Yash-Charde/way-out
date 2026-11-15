@@ -14,8 +14,8 @@ for b in develop staging; do
     && echo "created $b" || echo "$b exists"
 done
 gh api -X PATCH "repos/$REPO" -f default_branch=develop -F delete_branch_on_merge=true \
-  -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=false >/dev/null
-echo "default branch → develop, squash merges only"
+  -F allow_squash_merge=true -F allow_merge_commit=true -F allow_rebase_merge=false >/dev/null
+echo "default branch → develop; squash for features, merge commits for releases"
 
 protect() {  # branch, required approvals
   if gh api -X PUT "repos/$REPO/branches/$1/protection" --input - >/dev/null 2>&1 <<JSON
