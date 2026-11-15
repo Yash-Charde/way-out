@@ -111,7 +111,7 @@ One more doc, `_id: "fire_run"` (`kind: fire_run`, no geometry): the current fir
 `{ _id, name, county, status: ready|set|go|clear, polygon, source: tinyfish|manual|fire, sourceUrl, updatedAt }`. `source: fire`: the simulated fire moved it (api/hazard/zones.py: zones start READY; SET when the fire first touches the zone's outline, GO when it reaches the zone's first home; forward only, never touches CLEAR; simulated zones only). `drill: {published, publishedAt}` (what the drill page shows; changes nothing by itself) and `watch: {armedUntil, lastCheckAt, lastSeen, lastError, lastChangeAt, checks}` (TinyFish watcher). Collection `tinyfishUsage` `{_id: "YYYY-MM-DD", fetches}` counts free Fetch calls against the daily cap.
 
 ### Also
-`shelters` (location, capacity), `roadClosures` (LineString, source, at), `auditLog` (kind, message, refs, at), `plans` (version, solver, solveMs, objective, changedOffers; also proposals, unservable, unreachableCommitted, requested), `simControl` (one doc `_id: "sim"`, `standIns: {voice, drivers, approval, fireZones}`; `fireZones` defaults to on).
+`shelters` (location, capacity), `roadClosures` (LineString, source, at), `auditLog` (kind, message, refs, at), `plans` (version, solver, solveMs, objective, changedOffers; also proposals, unservable, unreachableCommitted, requested), `simControl` (one doc `_id: "sim"`, `standIns: {voice, drivers, approval, fireZones, realCalls}`; `fireZones` and `realCalls` default to on; `realCalls: false` = the dialer and callbacks never ring real phones).
 
 ### Tiger Data (Postgres / Timescale hypertables)
 **Built:** `fire_detections(time, env, run_id, lon, lat, frp, confidence, simulated)`: hypertable, 1-hour chunks, index `(run_id, time DESC)`. Created by the API on first use; a seed replaces its env's rows with the new run (~3,100 simulated hotspots over 8 h). Read by `GET /hazards/fire` (rows up to `at` + `time_bucket('15 minutes')` activity).
@@ -161,8 +161,14 @@ Auth: dashboard and driver endpoints are open (no sign-in yet). `/agent/*` and w
 | POST | `/zones/{id}/status` | `{status, sourceUrl}` (TinyFish webhook) → starts dialing at `set` |
 | POST | `/sim/seed` | `?scenario=pocket-fire&homes=200&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world: 200 homes, 8 vehicles, 2 shelters, 2 zones. Real households stay |
 | POST | `/sim/drive-test` | `?speedup=10&homes=200` → fresh world (instant census), auto-approve + stand-in drivers on, one solve. Vans then move once a second along SR 89A at 35 km/h × speedup. → `{world, plan, speedup, kmhOnScreen, metersPerSecond}` |
+| POST | `/sim/drive-test/stop` | → stand-in drivers + auto-approve off, speed 1×, `realCalls` stays off, queued callbacks to real phones dropped. → control view + `callbacksDropped` |
+| GET | `/persona` | **Internal token.** `?address=&phone=&includeSimulated=` → `{people: [{householdId, address, phone, simulated, zoneId, role, reach, language, claimedAt, location}], volunteers: [{vehicleId, driverName, phone, homeId, location}]}`. Not shown in the web app |
+| GET | `/persona/{householdId}` | **Internal token.** → the person and phone on that address |
+| PATCH | `/persona/{householdId}` | **Internal token.** `{address?, phone?}` (US E.164). A number moved here is released from its other houses |
+| DELETE | `/persona/{householdId}` | **Internal token.** Take the person off the house: back to a simulated stand-in, open request closed, offers withdrawn, queued callbacks dropped |
+| DELETE | `/persona/volunteers/{vehicleId}` | **Internal token.** Remove a Try-it volunteer car (accepted pickups are revoked and re-planned) |
 | POST | `/sim/census` | answer every unreached simulated home from its persona (no calls) → `{requests}` |
-| POST / GET | `/sim/control` | `{standIns?: {voice, drivers, approval, fireZones}: bool, speedup?: 1–600}` (partial updates) → `{standIns, speedup}`. `drivers`: simulated vehicles accept after 6 s and drive their runs; `speedup`: they drive and board N× faster |
+| POST / GET | `/sim/control` | `{standIns?: {voice, drivers, approval, fireZones, realCalls}: bool, speedup?: 1–600}` (partial updates) → `{standIns, speedup}`. `drivers`: simulated vehicles accept after 6 s and drive their runs; `speedup`: they drive and board N× faster |
 | GET | `/system/metrics` | → `{live: {calls, latencyMs: {realPhone, standIns}, interpreter, fallbacks, acks}, evals: data/eval-results.json \| null, dispatch: data/sim-results.json \| null, census: {reach, openRequests, duplicatesMerged}, audit: [..40]}` |
 | GET | `/health` | → `{ok, env, version, gitSha}` |
 

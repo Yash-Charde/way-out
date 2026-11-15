@@ -121,7 +121,13 @@ async def test_sim_routes(client, db):
     res = await client.post("/sim/seed", params={"homes": 20, "census": "instant"})
     assert res.status_code == 200 and res.json()["simulated"] is True
     res = await client.post("/sim/control", json={"standIns": {"approval": True}})
-    assert res.json()["standIns"] == {"voice": False, "drivers": False, "approval": True, "fireZones": True}
+    assert res.json()["standIns"] == {
+        "voice": False,
+        "drivers": False,
+        "approval": True,
+        "fireZones": True,
+        "realCalls": True,
+    }
     assert (await client.get("/sim/control")).json()["standIns"]["approval"] is True
 
 
@@ -149,3 +155,13 @@ async def test_reseed_after_the_kiosk_claimed_a_seeded_home(db):
     assert visitor["simulated"] is False and visitor["phone"] == "+15551230000"
     assert await db.households.find_one({"_id": "hh_sim_050_r1", "simulated": True})
     assert await db.vehicles.count_documents({}) == 8
+
+
+async def test_reseed_removes_zones_from_another_world(db):
+    from api.sim import seed as sim_seed
+
+    await db.zones.insert_one({"_id": "zone_phx_anthem", "name": "Anthem", "status": "ready", "simulated": True})
+    await db.simControl.update_one({"_id": "sim"}, {"$set": {"world": "valley-fire"}}, upsert=True)
+    await sim_seed.seed(db, homes=10)
+    assert sorted([z["_id"] async for z in db.zones.find({})]) == ["zone_oak_creek_14", "zone_oak_creek_15"]
+    assert "world" not in (await db.simControl.find_one({"_id": "sim"}))

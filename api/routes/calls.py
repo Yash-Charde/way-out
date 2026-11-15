@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from pymongo import DESCENDING
 
-from api import audit
+from api import audit, persona
 from api import requests as rq
 from api.agent import dialer
 from api.core.db import get_db
@@ -121,6 +121,10 @@ async def kiosk(body: KioskBody) -> dict:
     if hh.get("simulated") and "standInPhone" not in hh:
         await db.households.update_one({"_id": hh["_id"]}, {"$set": {"standInPhone": hh.get("phone")}})
     await audit.log(db, "kiosk_claim", hh.get("address", ""), householdId=hh["_id"])  # no phone number in logs
+    # One house per phone number: earlier houses this number claimed go back to stand-ins (no more calls).
+    await persona.release_other_houses(db, body.phone, keep=hh["_id"])
+    # The visitor asked to be called: real calls on again (a drive test turns them off).
+    await db.simControl.update_one({"_id": "sim"}, {"$set": {"standIns.realCalls": True}}, upsert=True)
     try:
         call_id = await dialer.dial(db, hh["_id"])
     except dialer.DialError as e:
