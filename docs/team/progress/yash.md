@@ -8,14 +8,14 @@ can see where you are on `develop` after each merge.
 | ID | When | Task | Task branch | Status | PR |
 |---|---|---|---|---|---|
 | D2-01 | 11:10–12:30 | Web scaffold | `feat/D2-01-web-scaffold` | 🟡 shell done in v0.0 (pages, lib/api.ts, lib/live.ts); add shadcn, MapLibre, deck.gl | |
-| D2-02 | 12:30–2:30 | Simulated world | `feat/D2-02-D2-04-sim-dispatch` | 🟡 in review: seed, instant census, stand-in switches. OSMnx graph deferred to D2-06 | #51 |
-| D2-03 | 2:30–4:30 | Console v1 | `feat/D2-03-console-v1` | 🟡 list console in #51 (requests, plan + Approve, fleet, counters); map still todo | |
-| D2-04 | 4:30–6:00 | Greedy dispatcher + solve loop | `feat/D2-02-D2-04-sim-dispatch` | 🟡 in review: greedy, loop, /plans/solve, auto-approve, closures re-plan | #51 |
-| D2-05 | 6:00–8:30 | Driver app | `feat/D2-05-driver-app` | ⬜ todo | |
-| D2-06 | 8:30–10:00 | Road closures + revoke | `feat/D2-06-road-closures-revoke` | ⬜ todo | |
+| D2-02 | 12:30–2:30 | Simulated world | `feat/D2-02-D2-04-sim-dispatch` | ✅ merged: seed (real personas + scenario), instant census, stand-in switches. OSMnx graph deferred to D2-06 | #51 |
+| D2-03 | 2:30–4:30 | Console v1 | `feat/D2-03-console-v1` | 🟡 list console works (requests, plan + Approve, fleet, counters, SIM controls); **map still todo** | #51 |
+| D2-04 | 4:30–6:00 | Greedy dispatcher + solve loop | `feat/D2-02-D2-04-sim-dispatch` | ✅ merged: greedy, loop, /plans/solve, auto-approve, closures re-plan | #51, #55 |
+| D2-05 | 6:00–8:30 | Driver app | `feat/D2-05-driver-app` | 🟡 in review: offer → accept → run → picked up → shelter, GPS, SOS hold; stand-in drivers | #59 |
+| D2-06 | 8:30–10:00 | Road closures + revoke | `feat/D2-06-road-closures-revoke` | 🟡 closures already re-plan and stop stand-in vans; console draw tool + revoke of accepted pickups todo | |
 | D2-07 | 10:00–11:30 | Fire map + deadlines | `feat/D2-07-fire-map-deadlines` | ⬜ todo | |
-| D2-08 | 11:30–12:45 | Driver safety | `feat/D2-08-driver-safety` | ⬜ todo | |
-| D2-09 | 1:00–3:00 | Impact simulation | `feat/D2-09-impact-simulation` | ⬜ todo | |
+| D2-08 | 11:30–12:45 | Driver safety | `feat/D2-08-driver-safety` | 🟡 SOS hold in #59; man-down (DeviceMotion), fire banner, route warning todo | |
+| D2-09 | 1:00–3:00 | Impact simulation | `feat/D2-09-impact-sim` | ✅ merged early to unblock A-09: Way Out 90.9% vs today 47.6% (middle), `data/sim-results.json` | #58 |
 
 ## How to work
 
@@ -26,6 +26,8 @@ can see where you are on `develop` after each merge.
 - Blocked more than 20 minutes → post in team chat with the task ID.
 
 ## Notes
+
+- **7:25 PM Sat:** D2-09 merged early (Aarya's A-09 was blocked on it). D2-05 in review (#59). Next: console map (D2-03), revoke (D2-06), fire replay (D2-07), man-down (D2-08). D2-10 waits on Deep's domain; repo secrets can go in now.
 
 - **4:20 PM Sat:** #51 = D2-02 + D2-04 + a list console, so M1 works without the map. 479 tests green.
 - Walter Ng (p04, bedbound) is always `unservable`: no stretcher vehicle in the fleet. Decide with Aarya.

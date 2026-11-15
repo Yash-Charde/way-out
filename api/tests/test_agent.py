@@ -247,6 +247,22 @@ async def test_neighbor_description_never_touches_this_record(client, db):
     assert await db.auditLog.count_documents({"kind": "neighbor_reported"}) == 1
 
 
+async def test_question_at_neighbor_stage_is_not_a_neighbor(client, db):
+    hh = await make_household(
+        db,
+        record={"canLeave": "no", "peopleCount": 1, "pets": False, "mobility": "walks", "medical": []},
+    )
+    call = Call(client, hh["_id"])
+    await call.start()
+    await call.say("yes")  # address
+    out = await call.say("yes")  # read-back
+    assert out["stage"] == "neighbor"
+    out = await call.say("Is someone coming?")
+    assert templates.STATUS["en"]["received"] in spoken(out)
+    assert out["stage"] == "neighbor"  # the neighbor question is asked again
+    assert await db.auditLog.count_documents({"kind": "neighbor_reported"}) == 0
+
+
 async def test_spanish_switch(client, db):
     hh = await make_household(db)
     call = Call(client, hh["_id"])
@@ -371,3 +387,5 @@ def test_status_templates_match_contract():
     )
     assert templates.status_line("en", "en_route", {"name": "Luis", "eta": 4.4}) == "Luis is about 4 minutes away."
     assert templates.status_line("en", "driver_accepted", None) == templates.STATUS["en"]["driver_accepted_no_detail"]
+    one = templates.status_line("en", "driver_accepted", {"name": "Lena", "eta": 1.4, "vehicleKind": "neighbor"})
+    assert "is 1 minute away" in one and "minutes" not in one

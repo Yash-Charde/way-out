@@ -3,7 +3,10 @@ name = "wayout-voice"
 version = "0.0.1"
 description = "Cartesia Line agent: a thin client that forwards each utterance to /agent/turn"
 requires-python = ">=3.12"
-dependencies = ["httpx>=0.28.1"]
+dependencies = [
+    "cartesia-line>=0.2.20",
+    "httpx>=0.28.1",
+]
 # D1-01: add the Cartesia Line SDK here (`uv add cartesia-line`) once the custom-agent API is confirmed.
 
 [tool.uv]

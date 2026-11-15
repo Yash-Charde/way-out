@@ -132,7 +132,7 @@ def _check_cartesia() -> None:
         )
 
 
-async def _cartesia_call(hh: dict[str, Any], call_id: str) -> str:
+async def _cartesia_call(hh: dict[str, Any], call_id: str, call_type: str = "outbound") -> str:
     """Cartesia outbound call. The Line agent reads householdId/callId from the dynamic variables
     and calls /agent/start with them when the resident picks up."""
     s = get_settings()
@@ -146,7 +146,7 @@ async def _cartesia_call(hh: dict[str, Any], call_id: str) -> str:
                 "dynamic_variables": {
                     "householdId": hh["_id"],
                     "callId": call_id,
-                    "callType": "outbound",
+                    "callType": call_type,  # read by voice/main.py (call_context)
                     "language": hh.get("language", "en"),
                 },
             }

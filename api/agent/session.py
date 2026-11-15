@@ -16,7 +16,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api import audit
 from api import requests as rq
-from api.agent import flow, honesty
+from api.agent import dedupe, flow, honesty
 from api.agent.interpreter import interpret
 from api.core.util import utcnow
 from api.models import Record
@@ -82,9 +82,24 @@ async def start(db: AsyncIOMotorDatabase, household_id: str, call_type: str, cal
         upsert=True,
     )
     await _push_turn(db, call_id, {"speaker": "agent", "text": " ".join(say), "at": now, "requestStatus": status})
-    if call_type != "callback":
+    if call_type == "callback":
+        # The opening lines carry the status, so a picked-up callback has been played.
+        await db.callbacks.update_many(
+            {"callId": call_id, "state": "placed"}, {"$set": {"state": "played", "playedAt": now, "updatedAt": now}}
+        )
+    else:
         await db.households.update_one({"_id": household_id}, {"$set": {"reach": "in_call", "updatedAt": now}})
+    if call_type == "callback" and req is not None and status in flow.ANNOUNCED:
+        await _cancel_queued_callbacks(db, req["_id"], status, call_id)
     return {"say": say, "stage": state["stage"]}
+
+
+async def _cancel_queued_callbacks(db: AsyncIOMotorDatabase, request_id: str, status: str, call_id: str) -> None:
+    """They just heard this status on this call: no separate phone call for the same news."""
+    await db.callbacks.update_many(
+        {"requestId": request_id, "announcedStatus": status, "state": "queued"},
+        {"$set": {"state": "played", "via": "in_call", "callId": call_id, "playedAt": utcnow()}},
+    )
 
 
 # ── turn ──────────────────────────────────────────────────────────────────────
@@ -126,6 +141,7 @@ async def turn(
     verdict = honesty.check(it.ack, status)
     if verdict.blocked:
         await audit.log(db, "ack_blocked", verdict.reason or "", callId=call_id, ack=it.ack)
+    announced_before = state.get("announcedStatus")
     say = flow.respond(
         state,
         record,
@@ -136,6 +152,9 @@ async def turn(
         ride=await ride_info(db, req),
         address=hh.get("address", ""),
     )
+
+    if req is not None and status in flow.ANNOUNCED and state.get("announcedStatus") != announced_before:
+        await _cancel_queued_callbacks(db, req["_id"], status, call_id)  # announced mid-call (D1-06)
 
     latency_ms = round((time.perf_counter() - t0) * 1000, 1)
     now = utcnow()
@@ -193,6 +212,8 @@ async def sync_request(
             req = await rq.upsert_for_household(
                 db, hh["_id"], need=need, deadline_at=hh.get("deadlineAt"), priority=priority
             )
+            if await dedupe.check(db, req):  # same home already has a request (D1-08)
+                req = await db.requests.find_one({"_id": req["_id"]})
     elif req is not None and req["status"] == "received" and record.get("canLeave") == "yes":
         # A correction: they can leave after all. Nobody has been offered this ride yet.
         req = await rq.transition(db, req["_id"], "closed", reason="resident can leave", by="agent")

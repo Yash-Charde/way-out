@@ -357,7 +357,7 @@ def respond(
             say.append(_status_for(lang, record, state, status, ride))
             state["announcedStatus"] = status if status in ANNOUNCED else state.get("announcedStatus")
         state["statusTold"] = True
-        if state.get("mode") == "callback":
+        if state.get("mode") == "callback" and status == "en_route":
             say.append(T.line(lang, "callback_more"))
         nxt = next_goal(state, record)
     if nxt == "goodbye":
@@ -386,7 +386,9 @@ def opening(
     """What the agent says when the call connects."""
     lang = state["language"]
     if state["mode"] == "callback":
-        say = [T.line(lang, "greet_callback"), T.status_line(lang, status, ride), T.line(lang, "callback_more")]
+        say = [T.line(lang, "greet_callback"), T.status_line(lang, status, ride)]
+        if status == "en_route":  # the other status lines already say when we'll call again
+            say.append(T.line(lang, "callback_more"))
         state["statusTold"] = True
         state["announcedStatus"] = status
         nxt = next_goal(state, record)

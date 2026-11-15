@@ -1,0 +1,8 @@
+[app]
+name = "wayout-voice"
+
+[build]
+cmd = "uv sync --frozen"
+
+[run]
+cmd = "uv run python main.py"

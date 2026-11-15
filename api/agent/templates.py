@@ -86,12 +86,16 @@ def status_line(lang: Lang, status: str | None, ride: dict[str, Any] | None = No
         if not (ride.get("name") and ride.get("eta") is not None):
             return t["driver_accepted_no_detail"]
         crew_n = 2 if (ride.get("crew") or 1) >= 2 else 1
-        return t[key].format(
+        eta = max(1, round(float(ride["eta"])))
+        text = t[key].format(
             vehicle=_VEHICLE[_l(lang)].get(ride.get("vehicleKind") or "", _VEHICLE[_l(lang)]["agency_van"]),
             crew=_CREW[_l(lang)][crew_n],
-            eta=max(1, round(float(ride["eta"]))),
+            eta=eta,
             name=ride["name"],
         )
+        if eta == 1:  # "1 minutes" → "1 minute"
+            text = text.replace("1 minutes", "1 minute").replace("1 minutos", "1 minuto")
+        return text
     return t.get(key, t["none"])
 
 

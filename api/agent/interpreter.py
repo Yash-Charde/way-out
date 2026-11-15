@@ -341,7 +341,9 @@ def rules(text: str, *, goal: str | None = None, language: str = "en") -> Interp
 
     if goal in ("neighbor_rider", "neighbor_driver"):
         # Whatever they describe here is about someone else's home, never this record.
-        if it.answer != "no" and len(t.split()) > 2:
+        # A question back to us ("is someone coming?") is not a neighbor description.
+        asking = "?" in t or bool(it.flags & {"asks_ride", "wants_time", "asks_what_to_do", "asks_why", "asks_repeat"})
+        if it.answer != "no" and len(t.split()) > 2 and not asking:
             it.neighbors = [text.strip()[:200]]
         return it
 

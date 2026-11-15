@@ -22,3 +22,6 @@ data/cache/
 .DS_Store
 .vscode/
 .idea/
+
+# Cartesia CLI link to the agent (local)
+voice/.cartesia/

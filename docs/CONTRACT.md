@@ -77,7 +77,8 @@ received ──approve──► approved ──driver accepts──► driver_ac
   "location": { "type": "Point", "coordinates": [...] }, "heading": 120, "speedMps": 12,
   "status": "idle|offered|on_run|offline",
   "safety": { "state": "ok|check|man_down|sos", "at": "ISO", "location": {...} },
-  "simulated": true, "lastSeenAt": "ISO"
+  "simulated": true, "lastSeenAt": "ISO",
+  "phoneSeenAt": "ISO"            // driver app open on a phone; stand-in drivers skip it (added D2-05)
 }
 ```
 
@@ -98,7 +99,7 @@ received ──approve──► approved ──driver accepts──► driver_ac
 - **Accepted runs are frozen.** New offers only go after a vehicle's last accepted stop.
 
 ### `callbacks`
-`{ _id, requestId, assignmentId, announcedStatus, etaMinutes, state: queued|placed|played|unanswered, key }`. `key = requestId:assignmentId:announcedStatus` has a **unique index**, so callbacks are idempotent. For `en_route` only, the key ends with the announcement number (`...:en_route:<announcedEtaSeq>`) so each ETA change > 3 min gets its own callback. A counter, not the ETA minute: an ETA going 10 → 14 → 10 would collide with its own first key. `etaMinutes` is the ETA that triggered it; the worker reads the live ETA from the assignment when it dials. *Added after v0.0 (handoff question 1).*
+`{ _id, requestId, assignmentId, announcedStatus, etaMinutes, state: queued|placed|played|unanswered|skipped, key }`. Worker fields (added D1-06): `attempts`, `notBefore`, `callId`, `placedAt`, `playedAt`, `via: in_call` (heard on a call already in progress), `reason` (why it was `skipped`: the request moved on, the offer is no longer accepted, or a newer ETA is queued). The call doc of a callback has `direction: callback` and `callbackId`. `key = requestId:assignmentId:announcedStatus` has a **unique index**, so callbacks are idempotent. For `en_route` only, the key ends with the announcement number (`...:en_route:<announcedEtaSeq>`) so each ETA change > 3 min gets its own callback. A counter, not the ETA minute: an ETA going 10 → 14 → 10 would collide with its own first key. `etaMinutes` is the ETA that triggered it; the worker reads the live ETA from the assignment when it dials. *Added after v0.0 (handoff question 1).*
 
 ### `calls`
 `{ _id, householdId, direction: outbound|inbound|callback, cartesiaCallId, startedAt, endedAt, outcome: answered|no_answer|voicemail|failed, language, turns: [{speaker: agent|resident, text, at, latencyMs, requestStatus, guardBlocked}] }`
@@ -107,7 +108,7 @@ received ──approve──► approved ──driver accepts──► driver_ac
 `{ _id, kind: fire|flood|road_blocked, source: firms|spread|photo|manual|sim, geometry, detectedAt, confidence, photoUrl? }`
 
 ### `zones`
-`{ _id, name, county, status: ready|set|go|clear, polygon, source: tinyfish|manual, sourceUrl, updatedAt }`
+`{ _id, name, county, status: ready|set|go|clear, polygon, source: tinyfish|manual, sourceUrl, updatedAt }`. Added D1-07: `drill: {published, publishedAt}` (what the drill page shows; changes nothing by itself) and `watch: {armedUntil, lastCheckAt, lastSeen, lastError, lastChangeAt, checks}` (TinyFish watcher). Collection `tinyfishUsage` `{_id: "YYYY-MM-DD", fetches}` counts free Fetch calls against the daily cap.
 
 ### Also
 `shelters` (location, capacity), `roadClosures` (LineString, source, at), `auditLog` (kind, message, refs, at), `plans` (version, solver, solveMs, objective, changedOffers; D2-04 adds proposals, unservable, unreachableCommitted, requested), `simControl` (one doc `_id: "sim"`, `standIns: {voice, drivers, approval}`; added D2-02).
@@ -125,6 +126,7 @@ Auth: dashboard and driver endpoints are open in demo mode. `/agent/*` and webho
 |---|---|---|---|
 | POST | `/agent/start` | `{householdId, callType: outbound\|callback\|inbound, callId}` → `{say: [str], stage}` | Deep |
 | POST | `/agent/turn` | `{callId, householdId, text, language}` → `{say: [str], stage, done, record, requestStatus}` | Deep |
+| POST | `/calls/kiosk` | `{householdId, phone: +1XXXXXXXXXX}` → `{callId, householdId, address}`: the house becomes the judge's real phone, then is dialed. 429 above 6/min (added D1-08) | Deep |
 | POST | `/calls/dial` | `{householdId}` → `{callId}` (real call via Cartesia, or stand-in) | Deep |
 | GET | `/calls?limit=` | → `[call summary + household]`, most recently active first (added D1-04) | Deep |
 | GET | `/calls/{id}` | → call summary + `turns` + open `request` (added D1-04) | Deep |
@@ -143,15 +145,45 @@ Auth: dashboard and driver endpoints are open in demo mode. `/agent/*` and webho
 | POST | `/vehicles/{id}/position` | `{lon, lat, heading, speedMps}` | Yash |
 | POST | `/vehicles/{id}/safety` | `{state, lon, lat}` | Yash |
 | GET | `/vehicles` | → `[vehicle]` | Yash |
+| GET | `/vehicles/{id}/run` | → `{vehicle, offers[], run[], shelters[], now}`; each offer/stop = assignment + `request {id,status,need,deadlineAt,escalation}` + `household {id,address,location,language}` *(added D2-05)* | Yash |
+| POST | `/vehicles/{id}/presence` | driver app open (every ~20 s) → `{ok}`; stand-in drivers leave the vehicle alone for 2 min *(added D2-05)* | Yash |
 | POST | `/roads/closures` | `{geometry, source}` → triggers re-plan | Yash |
 | GET | `/hazards` | → fire front, detections, deadlines | Yash |
 | POST | `/hazards/photo` | multipart image + lon/lat → Gemini vision → hazard | Yash (P2) |
+| GET | `/zones` | → `[zone]` (added D1-07) | Deep |
+| GET | `/zones/{id}/drill` | → drill page view: published status, zone status, watcher, free-tier usage (added D1-07) | Deep |
+| POST | `/zones/{id}/drill` | `{published}` → drill view. Only changes the page; TinyFish must read it (added D1-07) | Deep |
+| POST | `/zones/{id}/drill/watch` | `{on}` → arm/disarm the TinyFish watcher (added D1-07) | Deep |
+| POST | `/zones/county-check` | one read-only TinyFish fetch of `COUNTY_PAGE_URL`, logged (Bearer; added D1-07) | Deep |
 | POST | `/zones/{id}/status` | `{status, sourceUrl}` (TinyFish webhook) → starts dialing at `set` | Deep |
 | POST | `/sim/seed` | `?scenario=pocket-fire&homes=200&seed=42&census=none\|instant&firstArrivalMin=90` → replaces the simulated world: 200 homes, 8 vehicles, 2 shelters, 2 zones. Real households stay | Yash |
 | POST | `/sim/census` | answer every unreached simulated home from its persona (no calls) → `{requests}` *(added D2-02)* | Yash |
-| POST / GET | `/sim/control` | `{standIns: {voice, drivers, approval}: bool}` (partial updates) → current `standIns` | Yash |
+| POST / GET | `/sim/control` | `{standIns?: {voice, drivers, approval}: bool, speedup?: 1–600}` (partial updates) → `{standIns, speedup}`. `drivers`: simulated vehicles accept after 6 s and drive their runs; `speedup`: they drive and board N× faster | Yash |
 | GET | `/system/metrics` | → latency p50/p95, honesty, accuracy, dispatch results (`data/sim-results.json` from Yash) | Deep |
 | GET | `/health` | → `{ok, env, version, gitSha}` | Prem |
+
+### `data/sim-results.json` (Yash, D2-09; read by `/system/metrics` and slide 7)
+
+Made by `uv run --project api python -m api.sim.compare --seeds 50`. Everything in it is **simulated**.
+
+```jsonc
+{
+  "schema": 1, "simulated": true,
+  "label": "Simulated: 200 homes, Oak Creek Canyon scenario",   // print under the chart
+  "metric": "Share of people who needed a ride picked up before their deadline ...",
+  "generatedAt": "ISO", "gitSha": "abc1234", "seedsPerColumn": 50, "runs": 150,
+  "bars": [                                                     // in chart order
+    {"key": "today",  "label": "Today (911 queue)",          "available": true, "color": "orange",
+     "median": 47.6, "min": 36.6, "max": 52.7,                  // median of the middle column; whisker = min..max of column medians
+     "columns": {"low|middle|high": {"median", "p5", "p95", "runs"}}},
+    {"key": "greedy", "label": "Way Out (greedy dispatch)",  "available": true, "color": "blue", ...},
+    {"key": "ortools","label": "Way Out (OR-Tools)",         "available": false, "note": "..."}
+  ],
+  "headline": {"wayOutPct", "todayPct", "wayOutRange": [min, max], "todayRange": [min, max], "runsPerColumn", "text"},
+  "sensitivity": {"today55": {...}, "todayWithNeighbors": {...}},
+  "ridersPerRun": {...}, "settings": {...}, "fleets": {...}, "assumptions": {...}, "notClaimed": [...]
+}
+```
 
 ## 3. Live events (WebSocket `/live`)
 

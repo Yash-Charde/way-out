@@ -171,14 +171,19 @@ class Resident:
 
 
 async def run_call(
-    db: AsyncIOMotorDatabase, household_id: str, call_id: str, *, turn_delay_s: float = 0.0
+    db: AsyncIOMotorDatabase,
+    household_id: str,
+    call_id: str,
+    *,
+    turn_delay_s: float = 0.0,
+    call_type: str = "outbound",
 ) -> dict[str, Any]:
     """Play one full stand-in call through the real agent. Returns the last turn result."""
     hh = await db.households.find_one({"_id": household_id})
     if hh is None:
         raise ValueError(f"household {household_id} not found")
     resident = Resident(persona_for(hh))
-    await session.start(db, household_id, "outbound", call_id)
+    await session.start(db, household_id, call_type, call_id)
     out: dict[str, Any] = {"done": False}
     for _ in range(MAX_TURNS):
         call = await db.calls.find_one({"_id": call_id}, {"agent.goal": 1, "agent.done": 1})

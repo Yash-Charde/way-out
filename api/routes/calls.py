@@ -1,14 +1,17 @@
 """Calls: the call floor reads (D1-04) and POST /calls/dial (D1-05)."""
 
+from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pymongo import DESCENDING
 
+from api import audit
 from api import requests as rq
 from api.agent import dialer
 from api.core.db import get_db
+from api.core.util import utcnow
 from api.routes._util import out
 
 router = APIRouter(prefix="/calls", tags=["calls"])
@@ -62,6 +65,67 @@ async def get_call(call_id: str) -> dict:
         {"householdId": call.get("householdId"), "status": {"$in": list(rq.OPEN_STATUSES)}}
     )
     return {**_summary(call, hh), "turns": call.get("turns") or [], "request": out(req)}
+
+
+class KioskBody(BaseModel):
+    householdId: str
+    phone: str = Field(pattern=r"^\+1\d{10}$", description="US number in E.164, e.g. +14805551234")
+
+
+KIOSK_PER_MINUTE = 6  # the kiosk is open to anyone at the expo; don't let it become a dialer for strangers
+
+
+@router.post("/kiosk")
+async def kiosk(body: KioskBody) -> dict:
+    """Kiosk (D1-08): this house becomes the judge's real-phone household, then we call them.
+
+    The house starts fresh (no record, not reached) so the judge's own answers fill it. Its stand-in
+    request, if any, is closed while nobody has accepted it. → {callId, householdId, address}
+    """
+    db = get_db()
+    now = utcnow()
+    try:
+        dialer._check_cartesia()  # fail before touching the house if there's no phone line
+    except dialer.DialError as e:
+        raise HTTPException(e.status, str(e)) from e
+    recent = await db.auditLog.count_documents({"kind": "kiosk_claim", "at": {"$gt": now - timedelta(minutes=1)}})
+    if recent >= KIOSK_PER_MINUTE:
+        raise HTTPException(429, "the kiosk is busy; try again in a minute")
+    hh = await db.households.find_one({"_id": body.householdId})
+    if hh is None:
+        raise HTTPException(404, "household not found")
+    if hh.get("reach") in dialer.BUSY:
+        raise HTTPException(409, "this house is on a call right now; pick another one")
+    req = await db.requests.find_one({"householdId": hh["_id"], "status": {"$in": list(rq.OPEN_STATUSES)}})
+    if req is not None:
+        if req["status"] != "received":
+            raise HTTPException(409, "this house already has a driver on the way; pick another one")
+        await rq.transition(db, req["_id"], "closed", reason="kiosk: a judge plays this home", by="kiosk")
+    await db.households.update_one(
+        {"_id": hh["_id"]},
+        {
+            "$set": {
+                "phone": body.phone,
+                "simulated": False,
+                "record": {},
+                "corrections": [],
+                "reach": "not_called",
+                "role": "unknown",
+                "dialAttempts": 0,
+                "nextAttemptAt": None,
+                "kioskClaimedAt": now,
+                "updatedAt": now,
+            }
+        },
+    )
+    if hh.get("simulated") and "standInPhone" not in hh:
+        await db.households.update_one({"_id": hh["_id"]}, {"$set": {"standInPhone": hh.get("phone")}})
+    await audit.log(db, "kiosk_claim", hh.get("address", ""), householdId=hh["_id"])  # no phone number in logs
+    try:
+        call_id = await dialer.dial(db, hh["_id"])
+    except dialer.DialError as e:
+        raise HTTPException(e.status, str(e)) from e
+    return {"callId": call_id, "householdId": hh["_id"], "address": hh.get("address")}
 
 
 class DialBody(BaseModel):

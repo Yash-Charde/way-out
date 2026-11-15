@@ -3,7 +3,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.core.db import get_db
 from api.core.util import utcnow
@@ -46,21 +46,30 @@ class StandIns(BaseModel):
 
 
 class SimControl(BaseModel):
-    standIns: StandIns
+    standIns: StandIns | None = None
+    speedup: float | None = Field(default=None, ge=1, le=600, description="stand-in drivers drive/board N× faster")
 
 
 @router.post("/control")
 async def control(body: SimControl) -> dict:
     """Toggle stand-ins. `approval`: proposals are approved automatically (stand-in dispatcher).
-    `drivers` (D2-05) and `voice` (Deep, D1-05) are stored here for their workers to read."""
+    `drivers`: simulated vehicles accept and drive their runs (api/sim/drivers.py). `voice`: Deep's
+    stand-in residents (D1-05). `speedup`: stand-in drivers move and board N× faster (demo)."""
     db = get_db()
-    changes = {f"standIns.{k}": v for k, v in body.standIns.model_dump(exclude_none=True).items()}
+    changes: dict = {f"standIns.{k}": v for k, v in (body.standIns or StandIns()).model_dump(exclude_none=True).items()}
+    if body.speedup is not None:
+        changes["speedup"] = body.speedup
     if changes:
         await db.simControl.update_one({"_id": "sim"}, {"$set": {**changes, "updatedAt": utcnow()}}, upsert=True)
         request_replan()
-    return {"standIns": await sim_control(db)}
+    return await _control_view(db)
 
 
 @router.get("/control")
 async def get_control() -> dict:
-    return {"standIns": await sim_control(get_db())}
+    return await _control_view(get_db())
+
+
+async def _control_view(db) -> dict:
+    doc = await db.simControl.find_one({"_id": "sim"}) or {}
+    return {"standIns": await sim_control(db), "speedup": float(doc.get("speedup") or 1.0)}
