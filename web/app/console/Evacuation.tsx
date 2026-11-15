@@ -130,10 +130,10 @@ export function EvacuationPlayer({ onClose, className = "" }: { onClose: () => v
       ridersSafe = 0,
       lateRiders = 0;
     for (const [, , pick, drop, , fire] of data.riders) {
-      if (pick == null || pick > m) {
-        waiting++;
-        if (fire != null && fire <= m) lateRiders++;
-      } else if (drop == null || drop > m) inVehicle++;
+      // The fire got to their home before the pickup (stays counted after a late pickup too).
+      if (fire != null && fire <= m && (pick == null || pick > fire)) lateRiders++;
+      if (pick == null || pick > m) waiting++;
+      else if (drop == null || drop > m) inVehicle++;
       else ridersSafe++;
     }
     let driving = 0,
