@@ -97,7 +97,7 @@ export function Hero() {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:max-w-3xl">
             <Stat
               label="riders out before the fire"
-              value={sm ? `${sm.ridersOutBeforeFire} / ${sm.riders}` : "99%+"}
+              value={sm ? `${sm.ridersOutBeforeFire} / ${sm.riders}` : "98–100%"}
               tone="text-[#34d399]"
             />
             <Stat

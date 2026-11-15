@@ -178,8 +178,8 @@ export default function Landing() {
               <dl className="mt-6 grid grid-cols-2 gap-6">
                 <div>
                   <dt className="text-xs text-white/60">Riders out before the fire</dt>
-                  <dd className="display mt-1 text-4xl text-[#34d399]">99%+</dd>
-                  <dd className="text-xs text-white/50">of about 730 households that need a ride</dd>
+                  <dd className="display mt-1 text-4xl text-[#34d399]">98–100%</dd>
+                  <dd className="text-xs text-white/50">of about 730 households that need a ride, across simulated nights</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-white/60">Wheelchair & stretcher riders</dt>
@@ -196,8 +196,8 @@ export default function Landing() {
                 </div>
               </dl>
               <p className="mt-6 text-xs leading-relaxed text-white/50">
-                One simulated night with 132 vehicles and the fire reaching the first home 90 minutes after the warning.
-                Press Play evacuation in the console to watch it.
+                Simulated nights with 132 vehicles and the fire reaching the first home 90 minutes after the warning.
+                Press Play evacuation in the console to watch one.
               </p>
             </div>
           </div>
