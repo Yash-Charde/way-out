@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     allow_paid_models: bool = False
     claude_fallback_model: str = "claude-sonnet-5-5"
     claude_judge_model: str = "claude-opus-5-5"
-    # Best Use of AWS (D1-10): Claude through Amazon Bedrock. AWS keys come from the standard AWS_* env vars.
+    # Optional: Claude through Amazon Bedrock. AWS keys come from the standard AWS_* env vars.
     claude_provider: Literal["anthropic", "bedrock"] = "anthropic"
     aws_region: str = "us-west-2"
     bedrock_fallback_model: str = ""  # Bedrock model ID for the Sonnet fallback (from the Bedrock console)
@@ -36,14 +36,14 @@ class Settings(BaseSettings):
     firms_map_key: str = ""
     tinyfish_api_key: str = ""
 
-    # Dialer (D1-05). Cartesia numbers place at most 1 outbound call/s; stand-ins have no such limit.
+    # Dialer. Cartesia numbers place at most 1 outbound call/s; stand-ins have no such limit.
     dial_rate_per_s: float = 1.0
     standin_rate_per_s: float = 2.0
     standin_concurrency: int = 20
     standin_turn_delay_s: float = 0.6  # pause between stand-in turns, so /calls looks like a call
     standin_use_models: bool = False  # stand-ins use the free rule interpreter; real calls use Gemini/Claude
     reach_ladder_scale: float = 1.0  # 0.1 = retries after 12 s / 30 s instead of 2 / 5 min (demo)
-    # TinyFish zone watcher (D1-07). Fetch only: free up to 1,000 URLs/day; the cap keeps us under it.
+    # TinyFish zone watcher. Fetch only: free up to 1,000 URLs/day; the cap keeps us under it.
     public_web_url: str = "http://localhost:3000"  # where TinyFish finds /drill (must be public)
     tinyfish_daily_cap: int = 800
     tinyfish_poll_s: float = 15.0

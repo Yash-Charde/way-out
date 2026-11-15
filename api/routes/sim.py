@@ -1,4 +1,4 @@
-"""POST /sim/seed, POST /sim/control, POST /sim/census (Yash: D2-02). Everything from here is labeled SIM."""
+"""POST /sim/seed, POST /sim/control, POST /sim/census. Everything from here is labeled SIM."""
 
 from typing import Literal
 
@@ -55,8 +55,8 @@ class SimControl(BaseModel):
 @router.post("/control")
 async def control(body: SimControl) -> dict:
     """Toggle stand-ins. `approval`: proposals are approved automatically (stand-in dispatcher).
-    `drivers`: simulated vehicles accept and drive their runs (api/sim/drivers.py). `voice`: Deep's
-    stand-in residents (D1-05). `speedup`: stand-in drivers move and board N× faster (demo)."""
+    `drivers`: simulated vehicles accept and drive their runs (api/sim/drivers.py). `voice`:
+    stand-in residents. `speedup`: stand-in drivers move and board N× faster (demo)."""
     db = get_db()
     changes: dict = {f"standIns.{k}": v for k, v in (body.standIns or StandIns()).model_dump(exclude_none=True).items()}
     if body.speedup is not None:

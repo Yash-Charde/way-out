@@ -1,4 +1,4 @@
-"""Dedupe + kiosk (D1-08)."""
+"""Dedupe + kiosk."""
 
 import pytest
 
@@ -117,7 +117,7 @@ def cartesia(monkeypatch):
     return calls
 
 
-async def test_kiosk_turns_a_house_into_the_judges_phone(client, db, cartesia):
+async def test_kiosk_turns_a_house_into_the_visitors_phone(client, db, cartesia):
     hh = await make_household(db, record={"canLeave": "no", "peopleCount": 1}, role="needs_ride", reach="answered")
     stand_in = await upsert_for_household(db, hh["_id"])
     r = await client.post("/calls/kiosk", json={"householdId": hh["_id"], "phone": "+14805551234"})

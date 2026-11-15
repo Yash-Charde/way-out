@@ -1,4 +1,4 @@
-"""Agent turns (D1-02..D1-04): the state machine fills a record, corrections stick, requests follow."""
+"""Agent turns: the state machine fills a record, corrections stick, requests follow."""
 
 import asyncio
 
@@ -264,7 +264,7 @@ async def test_question_at_neighbor_stage_is_not_a_neighbor(client, db):
 
 
 async def test_first_real_phone_call_replayed(client, db):
-    """Deep's real call on 2026-11-15 (Cartesia, dev), word for word. It once lost the two-person lift."""
+    """A real test call on 2026-11-15 (Cartesia, dev), word for word. It once lost the two-person lift."""
     hh = await make_household(db)
     call = Call(client, hh["_id"], "call_real_1")
     await call.start()

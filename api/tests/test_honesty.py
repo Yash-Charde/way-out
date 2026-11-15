@@ -1,4 +1,4 @@
-"""Honesty guard (D1-03): promises, comfort and advice never reach the resident before a driver accepts."""
+"""Honesty guard: promises, comfort and advice never reach the resident before a driver accepts."""
 
 import pytest
 

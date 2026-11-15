@@ -58,7 +58,7 @@ export const api = {
     call<{ ok: true }>("POST", `/vehicles/${id}/safety`, s),
   closeRoad: (coordinates: [number, number][], source: "manual" | "hazard" | "sim" = "manual") =>
     call<Doc>("POST", "/roads/closures", { geometry: { type: "LineString", coordinates }, source }),
-  // simulation + dispatch (Yash, D2-02 / D2-04). Everything from /sim is simulated.
+  // simulation + dispatch. Everything from /sim is simulated.
   seed: (opts: { homes?: number; census?: "none" | "instant"; seed?: number } = {}) =>
     call<Record<string, unknown>>(
       "POST",
@@ -75,12 +75,12 @@ export const api = {
       "/plans/solve",
       { solver },
     ),
-  // system page (D1-09)
+  // system page
   systemMetrics: () => call<SystemMetrics>("GET", "/system/metrics"),
-  // kiosk (D1-08): this house becomes the judge's phone, then we call it
+  // kiosk: this house becomes the visitor's phone, then we call it
   kiosk: (householdId: string, phone: string) =>
     call<{ callId: string; householdId: string; address: string }>("POST", "/calls/kiosk", { householdId, phone }),
-  // call floor (D1-04)
+  // call floor
   calls: (limit = 100) => call<CallSummary[]>("GET", `/calls?limit=${limit}`),
   call: (id: string) => call<CallDetail>("GET", `/calls/${encodeURIComponent(id)}`),
 };

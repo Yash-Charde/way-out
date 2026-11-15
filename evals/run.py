@@ -1,4 +1,4 @@
-"""Evals (D1-09): run Aarya's 40 personas through the real agent and grade the result.
+"""Evals: run the 40 personas through the real agent and grade the result.
 
     uv run --project api python evals/run.py                 # free: code checks only
     uv run --project api python evals/run.py --judge         # + Claude judge (needs ANTHROPIC_API_KEY, costs money)

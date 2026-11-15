@@ -71,7 +71,7 @@
       "label": "Way Out (OR-Tools)",
       "available": false,
       "color": "blue",
-      "note": "P1, not built. Show two bars."
+      "note": "Not built."
     }
   ],
   "headline": {
@@ -209,7 +209,7 @@
     "high": 12
   },
   "assumptions": {
-    "source": "docs/story/impact.md (settings columns); the rest below are Yash's assumptions",
+    "source": "docs/simulation.md (settings columns); the rest below are modeling assumptions",
     "homes": 200,
     "callsPerMin": 60.0,
     "answeredCallMin": 2.5,

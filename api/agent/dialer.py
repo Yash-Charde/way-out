@@ -1,4 +1,4 @@
-"""Dialer + reach ladder (D1-05).
+"""Dialer + reach ladder.
 
 When a zone is at SET (or GO), every home in it gets called, highest priority first:
 earliest fire deadline first, homes we already know need help before unknown ones.

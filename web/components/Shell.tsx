@@ -21,16 +21,14 @@ function ConnectionDot() {
   );
 }
 
-/** Page shell used until each owner builds the real screen. Opens the /live socket. */
+/** Placeholder page shell for screens that aren't built yet. Opens the /live socket. */
 export function Shell({
   title,
-  owner,
-  task,
+  note = "Coming soon.",
   children,
 }: {
   title: string;
-  owner: string;
-  task: string;
+  note?: string;
   children?: React.ReactNode;
 }) {
   const connect = useLive((s) => s.connect);
@@ -49,9 +47,7 @@ export function Shell({
         {children ?? (
           <>
             <h1 className="text-2xl font-semibold">{title}</h1>
-            <p className="text-muted">
-              Shell only. {owner} builds this in <code className="text-ink">{task}</code>.
-            </p>
+            <p className="text-muted">{note}</p>
           </>
         )}
       </section>

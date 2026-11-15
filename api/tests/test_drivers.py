@@ -1,4 +1,4 @@
-"""Driver app endpoints + stand-in drivers (D2-05)."""
+"""Driver app endpoints + stand-in drivers."""
 
 from datetime import timedelta
 

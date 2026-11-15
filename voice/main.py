@@ -1,4 +1,4 @@
-"""Way Out voice agent (D1-01): a thin client. Our API chooses every sentence; this file only relays.
+"""Way Out voice agent: a thin client. Our API chooses every sentence; this file only relays.
 
   call starts      → POST /agent/start  → speak say[]
   resident speaks  → POST /agent/turn   → speak say[] (exactly as returned), hang up when done

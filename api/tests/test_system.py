@@ -1,4 +1,4 @@
-"""GET /system/metrics (D1-09): real numbers from calls, evals and the census."""
+"""GET /system/metrics: real numbers from calls, evals and the census."""
 
 import json
 

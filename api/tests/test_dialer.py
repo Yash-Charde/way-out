@@ -1,4 +1,4 @@
-"""Dialer + reach ladder + stand-ins (D1-05)."""
+"""Dialer + reach ladder + stand-ins."""
 
 from datetime import timedelta
 

@@ -2,7 +2,7 @@ import { API_URL } from "@/lib/api";
 import { DrillControls, type DrillView } from "./DrillControls";
 
 /**
- * Way Out drill page (D1-07). Plainly labeled; it must never look like a real county site.
+ * Way Out drill page. Plainly labeled; it must never look like a real county site.
  * The "Zone status" line is rendered on the server so TinyFish Fetch reads it as plain text,
  * exactly the way it would read a county Ready/Set/Go page.
  */

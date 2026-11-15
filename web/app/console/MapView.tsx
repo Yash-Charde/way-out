@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Console map (D2-03): MapLibre basemap + deck.gl layers.
+ * Console map: MapLibre basemap + deck.gl layers.
  * Red = fire or a person who needs help, nothing else. Blue = our vehicles and their routes.
  * If the basemap can't load (venue Wi-Fi), the map falls back to a plain dark background: every
  * deck.gl layer still draws.
@@ -221,7 +221,7 @@ export default function MapView(p: MapViewProps) {
           : requestByHousehold[h.id]?.escalation
             ? ink
             : h.simulated === false
-              ? COLORS.vehicle // a real household (the kiosk's judge)
+              ? COLORS.vehicle // a real household (a kiosk visitor)
               : halo,
       getLineWidth: (h) =>
         h.id === p.selectedHouseholdId ? 3 : requestByHousehold[h.id]?.escalation || h.simulated === false ? 2 : 1,

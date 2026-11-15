@@ -38,7 +38,7 @@ Five rules hold the whole design together:
 | Dispatcher | Laptop | `/console`, `/calls` | Watches the map, approves plans, closes roads, reads safety alerts |
 | Driver | Smartphone | `/driver` (PWA) | Accepts offers, follows the run, confirms pickups, sends SOS |
 | County | Public web page | Ready/Set/Go status | Changes zone status (we read it with TinyFish) |
-| Judge | Phone + laptop | `/` kiosk, `/system` | Gets called as a resident, inspects the numbers |
+| Visitor | Phone + laptop | `/` kiosk, `/system` | Gets called as a resident, inspects the numbers |
 
 ---
 
@@ -55,7 +55,7 @@ flowchart TB
   subgraph External services
     CL[Cartesia Line<br/>telephony · Ink STT · Sonic TTS]
     GM[Gemini API<br/>interpret · embed · vision]
-    CA[Claude API<br/>fallback · judge]
+    CA[Claude API<br/>fallback · eval grader]
     FI[NASA FIRMS<br/>satellite fire points]
     TF[TinyFish<br/>web agent]
     CP[County / drill page<br/>Ready · Set · Go]
@@ -91,23 +91,23 @@ flowchart TB
 
 ## 4. Components
 
-| Component | Responsibility | Tech | Folder | Owner |
-|---|---|---|---|---|
-| **Voice agent** | Runs the phone call. Sends each utterance to the API and speaks back what the API returns | Cartesia Line SDK (Python) | `voice/` | Deep |
-| **Agent service** | Turn handling: interpreter → state machine → templates → honesty guard → `say[]` | FastAPI, Gemini, Claude | `api/agent/` | Deep |
-| **Dialer + reach ladder** | Calls homes in priority order, retries, texts, door-check list | asyncio worker | `api/agent/dialer.py` | Deep |
-| **Callback worker** | Calls residents when their ride status changes | asyncio worker | `api/agent/callbacks.py` | Deep |
-| **Zone watcher** | Reads Ready/Set/Go pages with TinyFish and starts calls at SET | TinyFish + cron | `api/routes/zones.py` | Deep |
-| **Core rules** | Request status machine, offers, atomic accept, expiry, audit log | FastAPI, Motor | `api/requests.py`, `api/routes/assignments.py` | Prem → Yash |
-| **Live hub** | Turns Mongo change streams into WebSocket events | FastAPI WebSocket | `api/live.py` | Prem → Yash |
-| **Dispatcher (solver)** | Plans which vehicle picks up whom, re-plans on change | Python, OR-Tools | `api/dispatch/` | Yash |
-| **Hazard service** | Fire front, arrival time per home, automatic road closures | Python (NumPy, Shapely) | `api/hazard/` | Yash |
-| **Simulator** | 200 stand-in homes, drivers, fire clock, impact comparison | Python | `api/sim/` | Yash |
-| **Console** | Dispatcher map, requests, plan approval, closures, alerts | Next.js, MapLibre, deck.gl | `web/app/console/` | Yash |
-| **Driver app** | Offers, run, GPS, pickup confirmation, SOS, man-down | Next.js PWA | `web/app/driver/` | Yash |
-| **Call floor** | Live transcripts and records | Next.js | `web/app/calls/` | Deep |
-| **System page** | Metrics, evals, audit trail | Next.js | `web/app/system/` | Deep |
-| **Evals** | Persona calls, Claude judge, accuracy and honesty numbers | Python | `evals/` | Deep |
+| Component | Responsibility | Tech | Folder |
+|---|---|---|---|
+| **Voice agent** | Runs the phone call. Sends each utterance to the API and speaks back what the API returns | Cartesia Line SDK (Python) | `voice/` |
+| **Agent service** | Turn handling: interpreter → state machine → templates → honesty guard → `say[]` | FastAPI, Gemini, Claude | `api/agent/` |
+| **Dialer + reach ladder** | Calls homes in priority order, retries, texts, door-check list | asyncio worker | `api/agent/dialer.py` |
+| **Callback worker** | Calls residents when their ride status changes | asyncio worker | `api/agent/callbacks.py` |
+| **Zone watcher** | Reads Ready/Set/Go pages with TinyFish and starts calls at SET | TinyFish + cron | `api/routes/zones.py` |
+| **Core rules** | Request status machine, offers, atomic accept, expiry, audit log | FastAPI, Motor | `api/requests.py`, `api/routes/assignments.py` |
+| **Live hub** | Turns Mongo change streams into WebSocket events | FastAPI WebSocket | `api/live.py` |
+| **Dispatcher (solver)** | Plans which vehicle picks up whom, re-plans on change | Python | `api/dispatch/` |
+| **Hazard service** | Fire front, arrival time per home, automatic road closures | Python (NumPy, Shapely) | `api/hazard/` |
+| **Simulator** | 200 stand-in homes, drivers, fire clock, impact comparison | Python | `api/sim/` |
+| **Console** | Dispatcher map, requests, plan approval, closures, alerts | Next.js, MapLibre, deck.gl | `web/app/console/` |
+| **Driver app** | Offers, run, GPS, pickup confirmation, SOS, man-down | Next.js PWA | `web/app/driver/` |
+| **Call floor** | Live transcripts and records | Next.js | `web/app/calls/` |
+| **System page** | Metrics, evals, audit trail | Next.js | `web/app/system/` |
+| **Evals** | Persona calls, Claude grader, accuracy and honesty numbers | Python | `evals/` |
 
 ---
 
@@ -163,7 +163,7 @@ sequenceDiagram
   end
 ```
 
-- Real calls go only to real demo phones. The other ~200 homes are **stand-ins**: they run the same agent over text, replying with persona scripts, so the census fills for real.
+- Real calls go only to real phone numbers someone entered (kiosk or test). The other ~200 homes are **stand-ins**: they run the same agent over text, replying with persona scripts, so the census fills for real.
 - Cartesia numbers place at most one outbound call per second. A real deployment adds more numbers to go faster.
 
 ### 6.2 One turn of a call
@@ -353,15 +353,15 @@ stateDiagram-v2
 
 | Job | Model | Why |
 |---|---|---|
-| Interpret each utterance | **Gemini Flash** (`GEMINI_MODEL`) with a JSON schema | Fast, cheap, sponsor credits |
+| Interpret each utterance | **Gemini Flash** (`GEMINI_MODEL`) with a JSON schema | Fast, cheap |
 | Backup interpreter | **Claude Sonnet 5.5** | Gemini slower than 2.5 s or failing |
-| Photo hazard reports (P2) | **Gemini** vision | Reads smoke, flames, blocked roads in a photo |
+| Photo hazard reports (not built) | **Gemini** vision | Reads smoke, flames, blocked roads in a photo |
 | Duplicate detection | **Gemini embeddings** + Atlas Vector Search | Same household reached by several callers |
-| Judge for evals | **Claude Opus 5.5** | Grades every agent line against the call-taker principles |
+| Eval grader | **Claude Opus 5.5** | Grades every agent line against the call-taker principles |
 
-**Why honesty lives in code, not the prompt:** an AI under pressure ("please, is someone coming?") reaches for comfort, and "help is on the way" is the exact sentence that can kill someone who would otherwise have left on their own. So the AI never writes status sentences. Templates do. A regex guard drops any AI acknowledgment that sounds like a promise while no driver has accepted, and the Claude judge measures what slips through. This follows the *Constitutional AI* idea (Bai et al., 2022): written principles plus a model that judges outputs against them. Because we can't train the model, the principles steer it through the prompt, and code enforces the one rule that must never break.
+**Why honesty lives in code, not the prompt:** an AI under pressure ("please, is someone coming?") reaches for comfort, and "help is on the way" is the exact sentence that can kill someone who would otherwise have left on their own. So the AI never writes status sentences. Templates do. A regex guard drops any AI acknowledgment that sounds like a promise while no driver has accepted, and a Claude grader measures what slips through. This follows the *Constitutional AI* idea (Bai et al., 2022): written principles plus a model that judges outputs against them. Because we can't train the model, the principles steer it through the prompt, and code enforces the one rule that must never break.
 
-**Evals** (`evals/`): 40 persona calls in English and Spanish run through `/agent/turn`. We report per-field accuracy (address, people, mobility, assistance), the share of correct corrections, implied-promise rate according to the judge, and latency p50/p95. Results go to `/system`.
+**Evals** (`evals/`): 40 persona calls in English and Spanish run through `/agent/turn`. We report per-field accuracy (address, people, mobility, assistance), the share of correct corrections, implied-promise rate according to the grader, and latency p50/p95. Results go to `/system`.
 
 ---
 
@@ -369,35 +369,35 @@ stateDiagram-v2
 
 **Problem:** a dynamic dial-a-ride problem. Vehicles have capacities (seats, wheelchair, stretcher), crew sizes, and lifts. Each request has a pickup, any shelter with room as its drop-off, a need vector, and a deadline. New requests keep arriving, roads close, and accepted runs can't change.
 
-**Greedy baseline (P0, always on as the fallback):**
+**Greedy (built; always on as the fallback):**
 1. Sort open requests by deadline (riders being reassigned first).
 2. For each, find compatible vehicles. Insert the pickup after the vehicle's last accepted stop, and choose the one that reaches them soonest.
 3. Requests nobody can reach in time wait until everyone reachable is placed, then escalate as `unservable`.
 
-**OR-Tools (P1):** a pickup-and-delivery routing model with time windows (deadline), three capacity dimensions, compatibility as allowed-vehicle sets, each request optional with a large drop penalty, and accepted stops fixed. Solve limit is 3 s, warm-started from the greedy plan.
+**OR-Tools (planned, not built):** a pickup-and-delivery routing model with time windows (deadline), three capacity dimensions, compatibility as allowed-vehicle sets, each request optional with a large drop penalty, and accepted stops fixed. Solve limit is 3 s, warm-started from the greedy plan.
 
 **Objective (in order of weight):** missed deadlines (priced so one late rider outweighs any amount of driving) → need-weighted waiting → total driving time → churn of open offers.
 
 **When it re-plans:** every 5 s while requests or offers are open, every 30 s otherwise, and immediately on a road closure or a correction that changes a need.
 
-**Impact comparison** (`api/sim/compare.py`): identical households, fire, and fleet, 50 seeds. We compare **today** (riders call 911 themselves, first come first served, nearest unit, one household per trip), **Way Out + greedy**, and **Way Out + OR-Tools**. We report the median and the 5th–95th percentile of riders boarded at least 10 minutes before the fire. It's labeled "simulated" everywhere.
+**Impact comparison** (`api/sim/compare.py`): identical households, fire, and fleet, 50 seeds. We compare **today** (riders call 911 themselves, first come first served, nearest unit, one household per trip), **Way Out + greedy**. (OR-Tools is reported as not available.) We report the median and range of riders boarded at least 10 minutes before the fire; settings and results are in [`simulation.md`](simulation.md). It's labeled "simulated" everywhere.
 
 ---
 
 ## 11. Hazard model
 
-- **Input:** NASA FIRMS VIIRS active-fire points (375 m) for the area, or for the demo the Pocket Fire timeline in `data/scenario.json` replayed on a fast clock.
+- **Input:** NASA FIRMS VIIRS active-fire points (375 m) for the area, or the Pocket Fire timeline in `data/scenario.json` replayed on a fast clock.
 - **Spread:** each front point grows as an ellipse stretched downwind (Huygens' principle, the idea behind FARSITE). Rate of spread rises with wind speed. We march the front over a grid to get an arrival time per cell.
 - **Outputs:** `fireArrivalAt` for every home, `deadlineAt = arrival − 10 min`, and automatic `hazard` road closures when the front comes within 100 m of a road segment.
 - **Honesty:** the console says "scenario input, not a forecast." Satellite points are coarse and delayed, so we never claim the model predicts the fire at an individual house.
 
 ---
 
-## 12. What's real and what's simulated in the demo
+## 12. What's real and what's simulated
 
 | Real | Simulated (labeled "SIM") |
 |---|---|
-| The judge's phone call, speech, interpretation, record, honesty guard | The other ~200 households (same agent, persona replies) |
+| A visitor's phone call, speech, interpretation, record, honesty guard | The other ~200 households (same agent, persona replies) |
 | Dispatcher approval, driver accept on a real phone, callback call | 7 of the 8 vehicles and their movement |
 | Road graph of Sedona / Oak Creek Canyon (OpenStreetMap) | The fire timeline (built from the real Pocket Fire record) |
 | Atomic accept, revoke, reassignment | The "today" baseline in the impact comparison |
@@ -442,11 +442,11 @@ flowchart LR
 
 | Env | Branch | Web | API | DB | Cartesia agent |
 |---|---|---|---|---|---|
-| Development | `develop` | `dev.<domain>` | `api-dev.<domain>` | `wayout_dev` | `wayout-dev` (team phones) |
+| Development | `develop` | `dev.<domain>` | `api-dev.<domain>` | `wayout_dev` | `wayout-dev` (test phones) |
 | Testing | `staging` | `staging.<domain>` | `api-staging.<domain>` | `wayout_staging` | `wayout-dev` |
-| Production | `main` | `app.<domain>` | `api.<domain>` | `wayout_prod` | `wayout-prod` (judges' phones) |
+| Production | `main` | `app.<domain>` | `api.<domain>` | `wayout_prod` | `wayout-prod` |
 
-- `GET /health` returns `{env, version, gitSha}`. Check it before every demo.
+- `GET /health` returns `{env, version, gitSha}`. Check it after every deploy.
 - Secrets live in GitHub Environments and `/opt/wayout/<env>.env` on the VM, never in git.
 - Rollback: re-run the deploy for the previous image tag (`ghcr.io/<org>/wayout-api:<sha>`).
 
@@ -464,11 +464,10 @@ flowchart LR
 | FIRMS unavailable | Replay from `scenario.json` | "Scenario replay" chip on the map |
 | Two drivers accept at once | Exactly one wins. The other sees "Assignment changed" | Audit log `stale_accept_rejected` |
 | Duplicate callback | Unique key ignores it | Audit log entry |
-| Live demo phone fails at the expo | Play the recorded video. The console still runs on stand-ins | — |
 
 ---
 
-## 15. How this scales (for the Q&A)
+## 15. How this scales
 
 - **Calls:** voice agents are stateless per turn, so more calls means more Cartesia concurrency and more phone numbers (each number places 1 call per second). The API scales horizontally behind Caddy.
 - **Data:** one incident per zone document set. Shard by incident in a real deployment. Atlas change streams keep every screen in sync without polling.
@@ -479,9 +478,9 @@ flowchart LR
 
 ## 16. Security and privacy
 
-- Demo uses **fictional people only**. Real rider data would belong to the agency, under its authority.
-- `/agent/*` and webhooks need a shared bearer token. The driver app identifies the vehicle by link in the demo; a real deployment would add sign-in.
-- Phone numbers and transcripts would be deleted a fixed time after an incident closes (Standard Response used 72 hours). We note this as next steps.
+- Simulated households use **fictional people only**. Real rider data would belong to the agency, under its authority.
+- `/agent/*` and webhooks need a shared bearer token. The driver app identifies the vehicle by link; a real deployment would add sign-in.
+- Phone numbers and transcripts would be deleted a fixed time after an incident closes (not built yet).
 - No individual risk scores are shown on screen. The door-knock order uses a transparent score, and nobody is skipped.
 
 ---
@@ -491,11 +490,11 @@ flowchart LR
 | Term | Meaning |
 |---|---|
 | **Ready / Set / Go** | Arizona's evacuation levels: be ready, get set to leave, go now |
-| **Census** | The live table of every home in the zone and what we learned on the call |
+| **Census** |
 | **Request** | One ride need for one household |
-| **Assignment / offer** | A request offered to one vehicle in one plan version |
+| **Assignment / offer** |
 | **Callback** | A call we owe a resident because their ride status changed |
-| **Stand-in** | A simulated household or driver that uses the real system |
+| **Stand-in** |
 | **Reach ladder** | Call → retry 2 min → retry 5 min → text → door-check |
-| **Frozen run** | A driver's accepted stops, which re-planning never reorders or reassigns |
+| **Frozen run** |
 | **Deadline** | 10 minutes before the fire is expected at a home |

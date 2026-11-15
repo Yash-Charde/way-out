@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Dispatcher console (D2-03 + D2-04). Map first: the canyon fills the screen; requests (left) and the
+ * Dispatcher console. Map first: the canyon fills the screen; requests (left) and the
  * plan + fleet (right) sit on top of it. Approve with the button or `A` (`J`/`K` move). "Close a road":
  * click two points on SR 89A → POST /roads/closures → the solver re-plans at once.
  * Everything live comes from /live through lib/live.ts; static layers come from GET /hazards.
@@ -113,7 +113,7 @@ export function Console() {
   }, []);
 
   useEffect(() => connect(), [connect]);
-  // Driver safety alerts (D2-08): SOS / man-down from the driver app arrive on /live as vehicle.safety.
+  // Driver safety alerts: SOS / man-down from the driver app arrive on /live as vehicle.safety.
   useEffect(() => {
     if (!lastSafety) return;
     const { id, state, lon, lat } = lastSafety.data as { id: string; state: string; lon?: number; lat?: number };

@@ -4,7 +4,7 @@
   "timezone": "America/Phoenix",
   "ignitionAt": "2026-06-19T17:01:00-07:00",
   "ignition": [-111.78, 34.97],
-  "ignitionNote": "APPROXIMATE. No official origin coordinates were published that we could reach. Placed from the official description: about 7 miles north of Sedona, above the western rim of Oak Creek Canyon, near East Pocket (Red Rock-Secret Mountain Wilderness). Sources S-02, S-04. Replace with InciWeb/IRWIN origin if someone can pull it.",
+  "ignitionNote": "APPROXIMATE. No official origin coordinates were published that we could reach. Placed from the official description: about 7 miles north of Sedona, above the western rim of Oak Creek Canyon, near East Pocket (Red Rock-Secret Mountain Wilderness). Sources S-02, S-04. Replace with the InciWeb/IRWIN origin when available.",
   "zones": [
     { "id": "zone_oak_creek_14", "name": "Oak Creek Canyon (Coconino County EM zone 14)", "county": "Coconino" },
     { "id": "zone_oak_creek_15", "name": "Oak Creek Canyon (Coconino County EM zone 15)", "county": "Coconino" }
@@ -53,8 +53,8 @@
     { "t": "2026-07-13T08:00:00-07:00", "tMin": 34019, "type": "closure", "action": "reopen", "roadId": "sr89a_oak_creek", "source": "S-02,S-16", "note": "SR 89A closed 25 days (6/19 to 7/13). Reopen hour approximate ('Monday morning')." },
     { "t": "2026-07-30T08:00:00-07:00", "tMin": 58499, "type": "acres", "acres": 27393, "contained": 100, "source": "S-02", "note": "Final official size; 100% contained July 30." }
   ],
-  "demo": {
-    "note": "The real fire unfolded over days. For the 3-minute demo, compress: SET at t=0, first acres at +1 min, SR 89A closure at +2 min. Every on-screen use must carry the 'simulated' badge. Real fact worth saying on stage: the canyon went straight to GO about 2 h 15 min after the fire was reported, with no SET warning.",
+  "replay": {
+    "note": "The real fire unfolded over days. This is a compressed replay: SET at t=0, first acres at +20 s, SR 89A closure at +105 s, GO at +110 s. Any on-screen use carries the 'simulated' badge. For reference, the real canyon went straight to GO about 2 h 15 min after the fire was reported, with no SET warning.",
     "compressed": [
       { "tSec": 0, "type": "set", "zoneIds": ["zone_oak_creek_14", "zone_oak_creek_15"] },
       { "tSec": 20, "type": "acres", "acres": 100 },
@@ -63,5 +63,5 @@
       { "tSec": 110, "type": "go", "zoneIds": ["zone_oak_creek_14", "zone_oak_creek_15"] }
     ]
   },
-  "sourcesFile": "docs/story/sources.md"
+  "sourcesFile": "docs/sources.md"
 }

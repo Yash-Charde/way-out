@@ -1,4 +1,4 @@
-"""Calls: the call floor reads (D1-04) and POST /calls/dial (D1-05)."""
+"""Calls: the call floor reads and POST /calls/dial."""
 
 from datetime import timedelta
 from typing import Any
@@ -72,14 +72,14 @@ class KioskBody(BaseModel):
     phone: str = Field(pattern=r"^\+1\d{10}$", description="US number in E.164, e.g. +14805551234")
 
 
-KIOSK_PER_MINUTE = 6  # the kiosk is open to anyone at the expo; don't let it become a dialer for strangers
+KIOSK_PER_MINUTE = 6  # the kiosk is open to anyone; don't let it become a dialer for strangers
 
 
 @router.post("/kiosk")
 async def kiosk(body: KioskBody) -> dict:
-    """Kiosk (D1-08): this house becomes the judge's real-phone household, then we call them.
+    """Kiosk: this house becomes the visitor's real-phone household, then we call them.
 
-    The house starts fresh (no record, not reached) so the judge's own answers fill it. Its stand-in
+    The house starts fresh (no record, not reached) so the visitor's own answers fill it. Its stand-in
     request, if any, is closed while nobody has accepted it. → {callId, householdId, address}
     """
     db = get_db()
@@ -100,7 +100,7 @@ async def kiosk(body: KioskBody) -> dict:
     if req is not None:
         if req["status"] != "received":
             raise HTTPException(409, "this house already has a driver on the way; pick another one")
-        await rq.transition(db, req["_id"], "closed", reason="kiosk: a judge plays this home", by="kiosk")
+        await rq.transition(db, req["_id"], "closed", reason="kiosk: a visitor plays this home", by="kiosk")
     await db.households.update_one(
         {"_id": hh["_id"]},
         {

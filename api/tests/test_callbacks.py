@@ -1,4 +1,4 @@
-"""Callback worker + live status (D1-06): the resident hears every status change, once, and only the truth."""
+"""Callback worker + live status: the resident hears every status change, once, and only the truth."""
 
 from datetime import timedelta
 

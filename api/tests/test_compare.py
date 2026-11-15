@@ -1,4 +1,4 @@
-"""Impact simulation (D2-09): the numbers on slide 7 must come from a model that obeys its own rules."""
+"""Impact simulation: the published numbers must come from a model that obeys its own rules."""
 
 import json
 

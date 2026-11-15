@@ -1,6 +1,6 @@
-"""Stand-in residents (D1-05): simulated homes answer the REAL agent, turn by turn.
+"""Stand-in residents: simulated homes answer the REAL agent, turn by turn.
 
-Each simulated household is linked to one of Aarya's personas (`personaId`, set by /sim/seed).
+Each simulated household is linked to one of the personas in data/personas.json (`personaId`, set by /sim/seed).
 The stand-in reads the question the agent just asked (the call's current goal) and answers from
 the persona's ground truth (`truth`), in the persona's language. It goes through session.turn(),
 the same code path as a phone call, so the census, requests and transcripts are produced for real.

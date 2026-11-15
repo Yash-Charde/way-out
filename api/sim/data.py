@@ -1,4 +1,4 @@
-"""Aarya's scenario + personas (data/). Read at seed time; missing files fall back to small built-ins."""
+"""Scenario + personas (data/). Read at seed time; missing files fall back to small built-ins."""
 
 import json
 import logging

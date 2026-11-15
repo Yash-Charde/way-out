@@ -1,4 +1,4 @@
-"""Duplicate requests (D1-08): two callers for the same home → one request.
+"""Duplicate requests: two callers for the same home → one request.
 
 When a household's request is created or its needs change, compare it with the other open requests:
 
@@ -10,7 +10,7 @@ The newer request gets `dupOf = <older request id>` (the solver and the console 
 are merged into the older one (the larger value of each field), so nobody's need is lost.
 
 Atlas Vector Search: with a few hundred open requests the 50 m filter leaves a handful of candidates,
-so we compare their embeddings in Python. TODO(D1-08, Atlas): move the comparison to a `$vectorSearch`
+so we compare their embeddings in Python. TODO(Atlas): move the comparison to a `$vectorSearch`
 index on `requests.embedding` once the Atlas cluster is up; the logic stays the same.
 """
 

@@ -163,7 +163,7 @@ async def turn(
     )
 
     if req is not None and status in flow.ANNOUNCED and state.get("announcedStatus") != announced_before:
-        await _cancel_queued_callbacks(db, req["_id"], status, call_id)  # announced mid-call (D1-06)
+        await _cancel_queued_callbacks(db, req["_id"], status, call_id)  # announced mid-call
 
     latency_ms = round((time.perf_counter() - t0) * 1000, 1)
     now = utcnow()
@@ -203,7 +203,7 @@ async def turn(
     return {"say": say, "stage": state["stage"], "done": state["done"], "record": record, "requestStatus": status}
 
 
-# ── record → request (D1-04) ──────────────────────────────────────────────────
+# ── record → request ──────────────────────────────────────────────────
 
 
 async def sync_request(
@@ -225,7 +225,7 @@ async def sync_request(
             req = await rq.upsert_for_household(
                 db, hh["_id"], need=need, deadline_at=hh.get("deadlineAt"), priority=priority
             )
-            if await dedupe.check(db, req):  # same home already has a request (D1-08)
+            if await dedupe.check(db, req):  # same home already has a request
                 req = await db.requests.find_one({"_id": req["_id"]})
     elif req is not None and req["status"] == "received" and record.get("canLeave") == "yes":
         # A correction: they can leave after all. Nobody has been offered this ride yet.

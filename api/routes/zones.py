@@ -1,4 +1,4 @@
-"""Zones (Deep: D1-07).
+"""Zones.
 
 POST /zones/{id}/status         TinyFish/county webhook (Bearer INTERNAL_TOKEN). set/go starts the dialer.
 GET  /zones                     zones with status and watcher state

@@ -1,6 +1,6 @@
 """The callback queue: phone calls we owe a resident because their ride status changed.
 
-Core rules only. The worker that actually places the calls is `api/agent/callbacks.py` (Deep, D1-06):
+Core rules only. The worker that actually places the calls is `api/agent/callbacks.py`:
 it picks up `state: queued` documents and marks them `placed → played | unanswered`.
 
 `key = requestId:assignmentId:announcedStatus` has a unique index, so enqueueing twice is a no-op.

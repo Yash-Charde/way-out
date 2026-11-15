@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Promote develop → staging → main and tag it (P-12). Run on your laptop with `gh auth login` done.
+# Promote develop → staging → main and tag it. Run on your laptop with `gh auth login` done.
 #
 #   scripts/release.sh v1.0 <domain>
 #
 # Stops before prod until you type "yes" (do the two-phone smoke test on staging first).
-# Only Prem runs this. Nobody else merges to main.
 set -euo pipefail
 
 TAG="${1:?usage: scripts/release.sh <tag> <domain>}"
@@ -31,10 +30,10 @@ promote() {  # promote <from> <to>
   sleep 10  # let CI register its checks on the PR
   gh pr checks "$url" --watch --fail-fast || die "checks failed on $url"
   # The repo allows squash merges only. main needs 1 approval: --admin works if you're an admin,
-  # otherwise ask Yash to approve and this keeps retrying.
+  # otherwise ask another maintainer to approve and this keeps retrying.
   for i in $(seq 1 60); do
     if gh pr merge "$url" --squash 2>/dev/null || gh pr merge "$url" --squash --admin 2>/dev/null; then break; fi
-    [ "$i" = 1 ] && echo "can't merge yet (needs an approval?). Ask Yash to approve: $url  (retrying for 15 min)"
+    [ "$i" = 1 ] && echo "can't merge yet (needs an approval?). Ask a maintainer to approve: $url  (retrying for 15 min)"
     [ "$(gh pr view "$url" --json state -q .state)" = "MERGED" ] && break
     sleep 15
   done
@@ -90,4 +89,4 @@ smoke prod main
 say "tag $TAG"
 git tag -a "$TAG" "origin/main" -m "Way Out $TAG"
 git push origin "$TAG"
-printf '\n\033[32m✓ %s is live: https://app.%s\033[0m  Freeze: only demo-blocker fixes from here.\n' "$TAG" "$DOMAIN"
+printf '\n\033[32m✓ %s is live: https://app.%s\033[0m\n' "$TAG" "$DOMAIN"

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Kiosk (D1-08): a judge picks a house, enters their phone number, and Way Out calls them as that
+ * Kiosk: a visitor picks a house, enters their phone number, and Way Out calls them as that
  * resident. The call is the real agent; the transcript and record fill in here as they talk.
  * The map is the console's real map (MapLibre + deck.gl); the page layout is the kiosk's own.
  */

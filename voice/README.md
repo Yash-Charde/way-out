@@ -1,4 +1,4 @@
-# voice/ — Cartesia Line agent (Deep, D1-01)
+# voice/ — Cartesia Line agent
 
 Thin client: `main.py` relays every caller turn to the API and speaks back `say[]` exactly. No LLM runs
 here; interpretation, the state machine, templates and the honesty guard all live in `api/agent/`.
@@ -21,7 +21,7 @@ cartesia status agent_daiGsFjcGCn25NpH1UML4T
 ```
 
 Test without a phone: run the API, then drive `main.WayOutAgent` with `CallStarted` / `UserTurnEnded`
-events (see the D1-01 PR), or `cartesia chat 8000` against `PORT=8000 uv run python main.py`.
+events, or `cartesia chat 8000` against `PORT=8000 uv run python main.py`.
 
-Note: Cartesia stops hosting Line SDK code on Dec 1, 2026. After that, run `main.py` on our server and
+Note: Cartesia stops hosting Line SDK code on Dec 1, 2026. After that, run `main.py` on the API server and
 `cartesia connect --url ...` (self-hosted). The code doesn't change.

@@ -1,4 +1,4 @@
-"""Smoke test for the deployed API (P-04 check, P-10 demo run, P-12 release, P-15 expo).
+"""Smoke test for the deployed API.
 
     # health + reads + /live on all three envs
     uv run --project api python scripts/smoke.py --domain wayout.example
@@ -121,7 +121,7 @@ async def ride_flow(c: httpx.AsyncClient, rep: Report) -> None:
     res = await c.get("/plans/latest")
     proposed = [a for a in res.json().get("assignments", []) if a.get("status") == "proposed"]
     if not proposed:
-        rep.todo("plan has a proposed assignment", "none yet (needs D2-02 seed + D2-04 solve, or open requests)")
+        rep.todo("plan has a proposed assignment", "none yet (needs /sim/seed + a solve, or open requests)")
         return
     a = proposed[0]
     rep.ok("plan has a proposed assignment", f"{len(proposed)} proposed, using {a['id']}")

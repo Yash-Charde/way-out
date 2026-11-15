@@ -1,4 +1,4 @@
-"""Stand-in drivers (D2-05). On when `simControl.standIns.drivers` is true.
+"""Stand-in drivers. On when `simControl.standIns.drivers` is true.
 
 Every simulated vehicle that no phone has claimed (no driver-app presence in the last 2 min):
 - accepts an offer 6 s after it was offered (through api.assignments.accept: same atomic rules),
@@ -126,7 +126,7 @@ async def tick(db: AsyncIOMotorDatabase, *, now: datetime | None = None, dt_s: f
 
         moved = step_toward(road, here, target, step_m)
         if moved is None:
-            continue  # closure in the way: the solve loop revokes this pickup (D2-06) and the van moves on
+            continue  # closure in the way: the solve loop revokes this pickup and the van moves on
         pos, reached = moved
         if pos != here:
             await db.vehicles.update_one(

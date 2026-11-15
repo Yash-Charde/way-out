@@ -1,4 +1,4 @@
-"""Solve loop (D2-04): read open work → greedy plan → write `proposed` assignments + a `plans` doc.
+"""Solve loop: read open work → greedy plan → write `proposed` assignments + a `plans` doc.
 
 - Re-plans every 5 s while there is open work, every 30 s otherwise, and at once on `request_replan()`
   (road closures call it).
@@ -7,7 +7,7 @@
 - Stable: a request that keeps the same vehicle keeps its assignment (ETA updated quietly). A new plan
   version is written only when an offer changes, so the console doesn't flicker every 5 s.
 - Auto-approve (sim control `standIns.approval`) approves new proposals right away.
-- D2-06: a committed pickup that no route reaches anymore (closure), or that this vehicle now reaches late
+- A committed pickup that no route reaches anymore (closure), or that this vehicle now reaches late
   while another would make it, is taken back: accepted → revoke (resident told), offered → withdraw
   (silent). Then the plan runs again at once so it gets a new offer. The rest of the run never moves.
 """
@@ -145,7 +145,7 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime, *, replan
     result = greedy.plan(riders, vehicles, shelters, road.travel_min)
     solve_ms = round((time.perf_counter() - t0) * 1000, 1)
 
-    # ── D2-06: committed pickups the plan can't keep ─────────────────────────
+    # ── committed pickups the plan can't keep ─────────────────────────
     # Accepted pickups move only when no route reaches them (a closure), or when this vehicle is now late
     # and another one would make the deadline. Only that pickup changes; the rest of the run stays.
     if not replanned:

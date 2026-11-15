@@ -1,9 +1,9 @@
-"""POST /sim/seed: the simulated world for a scenario (D2-02). Everything written here has `simulated: true`.
+"""POST /sim/seed: the simulated world for a scenario. Everything written here has `simulated: true`.
 
 - ~200 households along SR 89A between Midgley Bridge and Pine Flat (Census tract 16.02 covers this
-  stretch), each linked to one of Aarya's personas so stand-in calls have a script and a ground truth.
-- The mix follows the middle column of docs/story/impact.md: 12% need a ride, 40% of those need a
-  wheelchair space or a lift. Homes get a placeholder fire arrival time until api/hazard/ (D2-07).
+  stretch), each linked to one of the personas in data/personas.json so stand-in calls have a script and a ground truth.
+- The mix follows the middle column of docs/simulation.md: 12% need a ride, 40% of those need a
+  wheelchair space or a lift. Homes get a placeholder fire arrival time until api/hazard/.
 - 8 vehicles (2 paratransit, 2 agency vans, 4 neighbors), 2 shelters, 2 zones (status `ready`).
 - `census="instant"` skips the calls: every home is "answered" with its persona's expected outcome and
   ride requests are created through api.requests. Handy for dispatch work before the dialer exists.
@@ -22,7 +22,7 @@ from api.core.util import utcnow
 from api.sim import data
 from api.sim.geo import Road, meters
 
-# docs/story/impact.md, middle column
+# docs/simulation.md, middle column
 NEED_RIDE_SHARE = 0.12
 HEAVY_SHARE_OF_RIDERS = 0.40
 
@@ -36,7 +36,7 @@ CLUSTERS = [  # (fraction along the tract, weight) Indian Gardens, Slide Rock, W
 
 FALLBACK_IGNITION = (-111.78, 34.97)
 
-# Fire placeholder (D2-07 replaces): elliptical spread downwind from the ignition point.
+# Fire placeholder: elliptical spread downwind from the ignition point.
 HEAD_SPREAD_M_PER_MIN = 60.0
 ECCENTRICITY = 0.7
 
@@ -182,7 +182,7 @@ def _priority(record: dict[str, Any], need: dict[str, Any]) -> float:
 
 
 async def reset(db: AsyncIOMotorDatabase) -> dict[str, int]:
-    """Delete the simulated world. Real households (simulated: false, e.g. the judge's phone) stay."""
+    """Delete the simulated world. Real households (simulated: false, e.g. a kiosk visitor's phone) stay."""
     sim_hh = [h["_id"] async for h in db.households.find({"simulated": True}, {"_id": 1})]
     sim_rq = [r["_id"] async for r in db.requests.find({"householdId": {"$in": sim_hh}}, {"_id": 1})]
     sim_vh = [v["_id"] async for v in db.vehicles.find({"simulated": True}, {"_id": 1})]
@@ -254,7 +254,7 @@ async def seed(
         raw.append((fire_minutes(loc, ignition, wind_from), _pick_persona(rng, groups), loc))
 
     earliest = min(m for m, _, _ in raw)
-    # A home the kiosk handed to a judge keeps its hh_sim_ id but is real now (simulated: false), so the
+    # A home the kiosk handed to a visitor keeps its hh_sim_ id but is real now (simulated: false), so the
     # reset above leaves it alone. Never reuse an id that's still taken.
     taken = {h["_id"] async for h in db.households.find({"_id": {"$regex": "^hh_sim_"}}, {"_id": 1})}
     docs: list[dict[str, Any]] = []

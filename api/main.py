@@ -33,18 +33,18 @@ log = logging.getLogger("api")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 ROUTERS = [
-    # core (Prem → Yash)
+    # core
     health,
     households,
     ride_requests,
     assignments,
     live,
-    # resident side (Deep)
+    # resident side
     agent,
     calls,
     zones,
     system,
-    # responder side (Yash)
+    # responder side
     plans,
     vehicles,
     roads,

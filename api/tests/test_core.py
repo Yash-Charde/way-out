@@ -65,7 +65,7 @@ async def test_zone_status_webhook(client, db):
 
 
 async def test_stubs_say_who_owns_them(client):
-    # Deep's endpoints are all built now (D1-09 was the last); photo reports are still a stub (P2).
+    # Every endpoint is built except photo reports, which are still a stub.
     res = await client.post("/hazards/photo")
     assert res.status_code in (422, 501)
 

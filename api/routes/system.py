@@ -1,13 +1,13 @@
-"""GET /system/metrics (Deep: D1-09). Real numbers only; anything simulated says so.
+"""GET /system/metrics. Real numbers only; anything simulated says so.
 
 - live:     every agent turn in the `calls` collection: latency p50/p95 (real phone calls and stand-ins
             separately), which interpreter answered, fallbacks, acknowledgments the honesty guard dropped.
 - evals:    data/eval-results.json, written by `evals/run.py` (40 personas through the real agent).
-- dispatch: data/sim-results.json from Yash's impact simulation (D2-09), when it exists.
+- dispatch: data/sim-results.json from the impact simulation (api/sim/compare.py), when it exists.
 - census:   households by reach, open requests by status, duplicates.
 - audit:    the last 40 audit-log entries.
 
-TODO(D1-09, Tiger Data): read latency from the `call_turns` hypertable once TIGER_DATABASE_URL is set.
+TODO(Tiger Data): read latency from the `call_turns` hypertable once TIGER_DATABASE_URL is set.
 """
 
 import json

@@ -1,4 +1,4 @@
-# evals/ — honesty + accuracy (Deep, D1-09)
+# evals/ — honesty + accuracy
 
 ```bash
 uv run --project api python evals/run.py            # free: code checks only (~1 s with the rule interpreter)

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Call floor (D1-04). Left: every call, live ones first. Right: the selected call's transcript
+ * Call floor. Left: every call, live ones first. Right: the selected call's transcript
  * streaming in over /live (`call.turn`), the household record filling (`household.updated`),
  * and a latency chip on every agent turn. REST only on load and after a reconnect.
  */

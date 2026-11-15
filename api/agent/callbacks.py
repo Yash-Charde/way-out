@@ -1,4 +1,4 @@
-"""Callback worker (D1-06): phone the resident when their ride status changes.
+"""Callback worker: phone the resident when their ride status changes.
 
 Core (api/callbacks.py) queues a callback on driver_accepted, reassigning, en_route (each ETA change
 > 3 min) and arrived. This worker picks up `state: queued`, calls the household (Cartesia for real

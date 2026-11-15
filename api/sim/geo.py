@@ -4,7 +4,7 @@ Oak Creek Canyon has one road in and out, so for v0 the road graph is one polyli
 Red Rock High School) → Uptown → Midgley Bridge → Slide Rock → Pine Flat → switchbacks → Fort Tuthill.
 A trip = drive from the door to the road + along the road + from the road to the door.
 
-Vertices are APPROXIMATE (hand-placed along the highway). D2-06 can swap in the OSMnx graph; the
+Vertices are APPROXIMATE (hand-placed along the highway). An OSMnx graph can replace it later; the
 `travel_min()` signature stays the same. Closures cut the road between two chainages.
 """
 

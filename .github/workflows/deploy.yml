@@ -48,7 +48,7 @@ jobs:
           echo "ghenv=$GHENV" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
-          # Image names must be lowercase; the owner is "Yash-Charde".
+          # Image names must be lowercase (the repo owner may have capitals).
           echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/wayout-api" >> "$GITHUB_OUTPUT"
 
   build:
@@ -69,7 +69,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: api
-          build-contexts: data=data  # Aarya's scenario + personas for /sim/seed → /app/data
+          build-contexts: data=data  # scenario + personas for /sim/seed → /app/data
           push: true
           build-args: GIT_SHA=${{ needs.plan.outputs.tag }}
           tags: |
@@ -87,7 +87,7 @@ jobs:
       contents: read
       packages: read
     steps:
-      # Until the Vultr VM exists (P-04 accounts), skip instead of failing: the image is still built and pushed.
+      # Until the Vultr VM exists, skip instead of failing: the image is still built and pushed.
       - name: VM configured?
         id: vm
         env:

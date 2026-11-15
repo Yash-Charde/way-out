@@ -1,6 +1,6 @@
-# Population: Oak Creek Canyon and Sedona (A-03)
+# Population: Oak Creek Canyon and Sedona
 
-**For Yash:** use the **Tract 16.02** column as the rates for `data/population.csv` (the stand-in canyon homes). The Sedona column is a cross-check with smaller error bars.
+The **Tract 16.02** column gives the rates for the simulated canyon homes. The Sedona column is a cross-check with smaller error bars. Sources: `docs/sources.md` (C-01 to C-04).
 
 **Source:** U.S. Census Bureau, American Community Survey **2019–2023 5-year estimates** (tables DP02, DP04, DP05, S1602, S1810), pulled from data.census.gov on 2026-11-14.
 The 2020–2024 5-year release has no data for this tract on data.census.gov yet, so 2019–2023 is the newest year with every column filled.
@@ -24,7 +24,7 @@ The 2020–2024 5-year release has no data for this tract on data.census.gov yet
 | **% of households speaking Spanish at home** | **7.8%** (±7.0), 51 households | 13.1% (±4.3) | 19.4% | 12.9% | S1602_C02_002E |
 | Spanish-speaking households with limited English | 0 | 310 (6.2%) | 68,739 | 3,186,816 | S1602_C03_002E |
 
-± is the ACS 90% margin of error. A tract of 650 households has wide margins, so say "about half" rather than "49.7%" on a slide.
+± is the ACS 90% margin of error. A tract of 650 households has wide margins, so treat these as approximate ("about half" rather than "49.7%").
 
 ## What this means for the stand-ins
 
@@ -33,7 +33,7 @@ The 2020–2024 5-year release has no data for this tract on data.census.gov yet
 - **Spanish matters less in the canyon than in Sedona.** ~8% of canyon households speak Spanish at home, ~13% in Sedona. Keep Spanish in the agent, but weight canyon stand-ins around 8%.
 - **Many homes are empty.** 46% of units are vacant (seasonal or short-term rentals). In the sim, a share of homes should be "no answer because nobody lives there", which is exactly why "silence is never safe" needs a door-knock list.
 
-## Suggested rates for `data/population.csv` (200 stand-in homes)
+## Suggested sampling rates for the simulated homes (200)
 
 | Field | Rate to sample | Basis |
 |---|---|---|
@@ -42,6 +42,6 @@ The 2020–2024 5-year release has no data for this tract on data.census.gov yet
 | Ambulatory disability in household | 0.15 | 12.1% of people ±6.9; rounded up because it counts per person, not per household (assumption) |
 | No vehicle | 0.03 | 3.1% |
 | Spanish at home | 0.08 | 7.8% |
-| Unoccupied (no answer) | 0.25 | Fewer than the 46% vacancy, because the demo wants mostly answered calls (assumption; label it simulated) |
+| Unoccupied (no answer) | 0.25 | Fewer than the 46% vacancy, so most simulated calls are answered (assumption; simulated) |
 
-Rows marked *assumption* are our modeling choices, not Census numbers, and must not appear on a slide as facts.
+Rows marked *assumption* are modeling choices, not Census numbers.

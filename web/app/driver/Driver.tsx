@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Driver app (D2-05). Phone first: one big action at a time, tap targets ≥ 48 px, high contrast.
+ * Driver app. Phone first: one big action at a time, tap targets ≥ 48 px, high contrast.
  *   /driver            → pick a vehicle
  *   /driver?v=vh_luis  → offers (2-min countdown) → Accept → run → On my way → Picked up → At shelter
  * Live GPS → /vehicles/{id}/position. Hold SOS for 2 s → /vehicles/{id}/safety.

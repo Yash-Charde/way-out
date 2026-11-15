@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * /system (D1-09): under the hood, for judges. Every number comes from GET /system/metrics:
- * live calls in the database, evals/run.py results, Yash's sim-results.json, the census and the audit log.
+ * /system: under the hood. Every number comes from GET /system/metrics:
+ * live calls in the database, evals/run.py results, data/sim-results.json, the census and the audit log.
  * A missing source shows as "not measured yet", never as a made-up number.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -49,7 +49,7 @@ function Missing({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-muted">{children}</p>;
 }
 
-/** data/sim-results.json from Yash's impact simulation (D2-09). */
+/** data/sim-results.json from the impact simulation (api/sim/compare.py). */
 type SimResults = {
   label?: string;
   metric?: string;
@@ -222,7 +222,7 @@ export default function SystemPage() {
           {m?.dispatch ? (
             <Dispatch d={m.dispatch as unknown as SimResults} />
           ) : (
-            <Missing>Waiting for the impact simulation (data/sim-results.json, D2-09).</Missing>
+            <Missing>Waiting for the impact simulation (data/sim-results.json).</Missing>
           )}
         </Card>
 

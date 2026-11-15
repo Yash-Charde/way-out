@@ -1,4 +1,4 @@
-"""GET /hazards, POST /hazards/photo (Yash: D2-07, P2 photo reports)."""
+"""GET /hazards, POST /hazards/photo."""
 
 from fastapi import APIRouter
 
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/hazards", tags=["hazards"])
 
 @router.get("")
 async def list_hazards() -> dict:
-    """TODO(D2-07): add the fire front and per-home deadlines from api/hazard/spread.py."""
+    """TODO: add the fire front and per-home deadlines from api/hazard/spread.py."""
     db = get_db()
     return {
         "hazards": [out(h) async for h in db.hazards.find({})],
@@ -24,4 +24,4 @@ async def list_hazards() -> dict:
 @router.post("/photo")
 async def photo() -> dict:
     """multipart image + lon/lat → Gemini vision → hazard."""
-    raise not_yet("P2 photo reports", "Yash")
+    raise not_yet("photo hazard reports")

@@ -138,14 +138,14 @@ async def test_hazards_returns_every_static_map_layer(client, db):
 
 
 async def test_reseed_after_the_kiosk_claimed_a_seeded_home(db):
-    """The kiosk turns hh_sim_050 into the judge's real household (same id, simulated: false). Reseeding
+    """The kiosk turns hh_sim_050 into a visitor's real household (same id, simulated: false). Reseeding
     must keep it and still build the whole world (it used to die on the duplicate id at home #51)."""
     await seed.seed(db, homes=200)
     await db.households.update_one({"_id": "hh_sim_050"}, {"$set": {"simulated": False, "phone": "+15551230000"}})
     out = await seed.seed(db, homes=200)
     assert out["households"] == 200 and out["vehicles"] == 8
     assert await db.households.count_documents({"simulated": True}) == 200
-    judge = await db.households.find_one({"_id": "hh_sim_050"})
-    assert judge["simulated"] is False and judge["phone"] == "+15551230000"
+    visitor = await db.households.find_one({"_id": "hh_sim_050"})
+    assert visitor["simulated"] is False and visitor["phone"] == "+15551230000"
     assert await db.households.find_one({"_id": "hh_sim_050_r1", "simulated": True})
     assert await db.vehicles.count_documents({}) == 8

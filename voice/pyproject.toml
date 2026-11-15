@@ -7,7 +7,7 @@ dependencies = [
     "cartesia-line>=0.2.20",
     "httpx>=0.28.1",
 ]
-# D1-01: add the Cartesia Line SDK here (`uv add cartesia-line`) once the custom-agent API is confirmed.
+# Add the Cartesia Line SDK here (`uv add cartesia-line`) once the custom-agent API is confirmed.
 
 [tool.uv]
 package = false

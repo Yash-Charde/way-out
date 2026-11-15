@@ -1,4 +1,4 @@
-"""Impact simulation (D2-09). Analysis, not product: no database, no API.
+"""Impact simulation. Analysis, not product: no database, no API.
 
     uv run --project api python -m api.sim.compare            # → data/sim-results.json
 
@@ -13,7 +13,7 @@ Same homes, same fire, same seed, two ways of getting people out:
   5 min, text, door check). The real dispatcher (api/dispatch/greedy.py) re-plans as needs arrive;
   offers are approved and accepted after a short delay; accepted stops never move.
 
-Metric (docs/story/impact.md): share of PEOPLE who needed a ride picked up before their deadline
+Metric (docs/simulation.md): share of PEOPLE who needed a ride picked up before their deadline
 (deadline = 10 min before the fire reaches the home). Each setting column (low / middle / high) runs
 `seeds` worlds. A bar = median of the middle column; its whisker = min..max of the three column medians.
 """
@@ -38,7 +38,7 @@ from api.sim.seed import FALLBACK_IGNITION, SHELTERS, VEHICLES, fire_minutes, pl
 
 COLUMNS = ("low", "middle", "high")
 
-# docs/story/impact.md, column by column. Board minutes: walks / walker / wheelchair / two-person lift.
+# docs/simulation.md, column by column. Board minutes: walks / walker / wheelchair / two-person lift.
 SETTINGS: dict[str, dict[str, Any]] = {
     "low": {
         "answerShare": 0.40,
@@ -402,7 +402,7 @@ def simulate(seeds: int = 50, first_seed: int = 1) -> dict[str, Any]:
                 "label": "Way Out (OR-Tools)",
                 "available": False,
                 "color": "blue",
-                "note": "P1, not built. Show two bars.",
+                "note": "Not built.",
             },
         ],
         "headline": {
@@ -430,7 +430,7 @@ def simulate(seeds: int = 50, first_seed: int = 1) -> dict[str, Any]:
         "settings": SETTINGS,
         "fleets": {k: len(v) for k, v in FLEETS.items()},
         "assumptions": {
-            "source": "docs/story/impact.md (settings columns); the rest below are Yash's assumptions",
+            "source": "docs/simulation.md (settings columns); the rest below are modeling assumptions",
             "homes": HOMES,
             "callsPerMin": CALLS_PER_MIN,
             "answeredCallMin": CALL_MIN,

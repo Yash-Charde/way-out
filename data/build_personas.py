@@ -1,4 +1,4 @@
-"""Build data/personas.json (A-05). Fictional residents only.
+"""Build data/personas.json. Fictional residents only.
 
 Run from repo root:  python3 data/build_personas.py
 Enums match docs/CONTRACT.md `households.record`.

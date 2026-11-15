@@ -1,6 +1,6 @@
 """Way Out API client used by the Line agent. All call logic lives in the API, not here.
 
-The Line agent (D1-01) should:
+The Line agent should:
   1. on pickup:          say(await client.start(household_id, call_type, call_id))
   2. on each utterance:  say(await client.turn(call_id, household_id, text, language))
   3. hang up when the turn result has done=True

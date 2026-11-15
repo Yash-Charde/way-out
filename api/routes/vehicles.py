@@ -1,4 +1,4 @@
-"""Vehicles (Yash: D2-05, D2-08): list, a driver's run, phone presence, position, safety.
+"""Vehicles: list, a driver's run, phone presence, position, safety.
 
 A phone that has the driver app open (presence or position in the last PHONE_FRESH_S) owns its vehicle:
 stand-in drivers (api/sim/drivers.py) leave it alone.
@@ -89,7 +89,7 @@ async def position(vehicle_id: str, body: PositionBody) -> dict:
     """A phone's GPS fix. Fixes far from the scenario's road (a demo phone in Tempe driving "Luis" in Oak
     Creek Canyon) are not applied: they would drag the van 150 km away and the planner would give its
     pickups to someone else. The phone still owns the vehicle (phoneSeenAt)."""
-    # TODO(D2-07): also append to Tiger Data `vehicle_positions`.
+    # TODO: also append to Tiger Data `vehicle_positions`.
     if _ROAD.project((body.lon, body.lat))[1] > MAX_GPS_OFF_ROAD_M:
         res = await get_db().vehicles.update_one({"_id": vehicle_id}, {"$set": {"phoneSeenAt": utcnow()}})
         if not res.matched_count:

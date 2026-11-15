@@ -1,4 +1,4 @@
-"""POST /plans/solve, GET /plans/latest (Yash: D2-04)."""
+"""POST /plans/solve, GET /plans/latest."""
 
 from typing import Literal
 
@@ -18,7 +18,7 @@ class SolveBody(BaseModel):
 
 @router.post("/solve")
 async def solve(body: SolveBody | None = None) -> dict:
-    """Plan once now. OR-Tools is P1 (D2-09); until it lands every solve is greedy (`requested` says what
+    """Plan once now. OR-Tools isn't built; until it is, every solve is greedy (`requested` says what
     was asked for)."""
     return await loop.solve_once(get_db(), (body or SolveBody()).solver)
 

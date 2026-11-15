@@ -1,4 +1,4 @@
-"""POST /agent/start, POST /agent/turn (Deep: D1-02, D1-03, D1-04). Bearer INTERNAL_TOKEN."""
+"""POST /agent/start, POST /agent/turn. Bearer INTERNAL_TOKEN."""
 
 from typing import Literal
 

@@ -1,4 +1,4 @@
-"""TinyFish SET trigger (D1-07): drill page → TinyFish Fetch → zone status → dialer. Free tier only."""
+"""TinyFish SET trigger: drill page → TinyFish Fetch → zone status → dialer. Free tier only."""
 
 from datetime import timedelta
 

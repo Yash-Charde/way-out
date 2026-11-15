@@ -1,4 +1,4 @@
-"""D2-06: a closure (or a late van) takes back only the pickup that can't be kept, tells the resident, and
+"""Revoke: a closure (or a late van) takes back only the pickup that can't be kept, tells the resident, and
 re-offers it to a vehicle that can make it. The rest of the driver's run stays as accepted."""
 
 import math

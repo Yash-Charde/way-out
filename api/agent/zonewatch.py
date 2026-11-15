@@ -1,4 +1,4 @@
-"""TinyFish zone watcher (D1-07): read the drill page like a county page, flip the zone, start the calls.
+"""TinyFish zone watcher: read the drill page like a county page, flip the zone, start the calls.
 
 The drill page (web/app/drill) is a plainly labeled Way Out page that *publishes* a zone's
 Ready/Set/Go status. Publishing does nothing by itself. This watcher reads the public page with

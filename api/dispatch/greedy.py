@@ -1,4 +1,4 @@
-"""Greedy dispatcher (D2-04). Pure: no database, no clock. The loop (api/dispatch/loop.py) does the I/O.
+"""Greedy dispatcher. Pure: no database, no clock. The loop (api/dispatch/loop.py) does the I/O.
 
 1. Sort open requests: riders being reassigned first, then earliest deadline, then priority.
 2. For each, try every compatible vehicle (seats, wheelchair, stretcher, crew, lift). The pickup goes
@@ -20,7 +20,7 @@ LonLat = tuple[float, float]
 Travel = Callable[[LonLat, LonLat], float]
 
 UNLOAD_MIN = 5.0
-# Boarding minutes, docs/story/impact.md middle column: walks 3 / walker 6 / wheelchair 10 / two-person lift 15
+# Boarding minutes, docs/simulation.md middle column: walks 3 / walker 6 / wheelchair 10 / two-person lift 15
 BOARD_MIN = {"walks": 3.0, "walker": 6.0, "wheelchair": 10.0, "lift": 15.0, "stretcher": 15.0}
 
 
