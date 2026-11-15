@@ -323,7 +323,11 @@ export function EvacuationPlayer({ onClose, className = "" }: { onClose: () => v
             <b className="text-ink">
               {s?.ridersOutBeforeFire} of {s?.riders}
             </b>
-            {s?.ridersNoVehicle ? ` · ${s.ridersNoVehicle} no vehicle can carry` : ""}. {s?.stayed} chose to stay and{" "}
+            {s?.ridersNoVehicle ? ` · ${s.ridersNoVehicle} no vehicle can carry` : ""}. Wheelchair and stretcher riders:{" "}
+            <b className="text-ink">
+              {s?.mobilityOutBeforeFire} of {s?.mobilityRiders}
+            </b>
+            . {s?.stayed} chose to stay and{" "}
             {s?.unreached} never answered (door-knock list). {s?.vehicles} vehicles; none ever over its seats.
           </p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">

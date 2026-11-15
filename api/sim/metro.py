@@ -44,7 +44,12 @@ NAMED = [  # the demo's drivers keep their names and ids
 ]
 EXTRA_PARATRANSIT = ["Rosa M.", "Kevin", "Imani", "Grace", "Andre", "Mei", "Victor", "Nadia", "Paul", "Ines", "Tariq"]
 EXTRA_VANS = ["Hector", "Beth", "Omar"]
-BUSES = [("vh_bus_1", "Bus 1 · Ray", "hayden_shea"), ("vh_bus_2", "Bus 2 · Lin", "airpark")]
+BUSES = [
+    ("vh_bus_1", "Bus 1 · Ray", "hayden_shea"),
+    ("vh_bus_2", "Bus 2 · Lin", "airpark"),
+    ("vh_bus_3", "Bus 3 · Moss", "thompson_peak"),
+    ("vh_bus_4", "Bus 4 · Ada", "shea_scottsdale"),
+]
 # Stretcher patients need an ambulance; without one they could only be escalated, never driven out.
 # City scale: mutual-aid strike teams (20 rigs) for the ~90 stretcher patients the census finds.
 _MEDICS = ["Kai", "Lucia", "Ortiz", "Bree", "Dan", "Amara", "Jules", "Rafi", "Kim", "Sol", "Tia", "Wes",
@@ -114,6 +119,36 @@ NEIGHBOR_NAMES = [
     "Alma",
     "Bo",
     "Cyrus",
+    "Iris B.",
+    "Joel",
+    "Kara",
+    "Liam",
+    "Mona",
+    "Nico",
+    "Olga",
+    "Pia",
+    "Quinn",
+    "Ravi",
+    "Sana",
+    "Teo",
+    "Uma",
+    "Vera",
+    "Wade",
+    "Ximena",
+    "Yosef",
+    "Zara",
+    "Abel",
+    "Bea",
+    "Cal",
+    "Dora",
+    "Emil",
+    "Faye",
+    "Gil",
+    "Hana",
+    "Ike",
+    "Jada",
+    "Kurt",
+    "Lola",
 ]
 
 
@@ -175,7 +210,8 @@ def _address(rng: random.Random) -> str:
 def _vehicle(_id: str, kind: str, name: str, loc: tuple[float, float], now: datetime) -> dict[str, Any]:
     cap = {
         "paratransit": ({"seats": 4, "wheelchair": 2, "stretcher": 0}, 2, True),
-        "agency_van": ({"seats": 8, "wheelchair": 0, "stretcher": 0}, 2, False),
+        # City agency vans are lift-equipped (two wheelchair positions); the canyon's vans are not.
+        "agency_van": ({"seats": 8, "wheelchair": 2, "stretcher": 0}, 2, True),
         "bus": ({"seats": 30, "wheelchair": 1, "stretcher": 0}, 2, True),
         "ambulance": ({"seats": 2, "wheelchair": 1, "stretcher": 1}, 2, True),
         "neighbor": ({"seats": 3, "wheelchair": 0, "stretcher": 0}, 1, False),

@@ -97,6 +97,9 @@ async def test_evacuation_replay_numbers_add_up(db):
     assert s["riders"] + s["selfEvac"] + s["stayed"] + s["unreached"] == s["homes"] == 1500
     assert s["ridersOutBeforeFire"] + s["ridersLate"] + s["ridersNoVehicle"] == s["riders"]
     assert s["ridersNoVehicle"] == 0  # the city fleet has ambulances and lift vans
+    # Who this is for: every wheelchair, lift and stretcher rider out before the fire, and 99%+ of all riders.
+    assert s["mobilityRiders"] > 0 and s["mobilityOutBeforeFire"] == s["mobilityRiders"]
+    assert s["ridersOutBeforeFire"] >= 0.99 * s["riders"]
     for _lon, _lat, pick, drop, vi, _fire in out["riders"]:
         assert pick is not None and drop is not None and drop >= pick >= out["callMin"]
         assert 0 <= vi < len(out["vehicles"])

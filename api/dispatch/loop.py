@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 PLANNABLE = ("received", "reassigning")
 BUSY_EVERY_S, IDLE_EVERY_S = 5.0, 30.0
 ETA_QUIET_DELTA_MIN = 1.0
-MAX_RIDERS_PER_SOLVE = 250  # most urgent riders planned per solve (North Scottsdale scale)
+MAX_RIDERS_PER_SOLVE = 60  # most urgent riders planned per solve (North Scottsdale scale)
 FIRE_BUFFER_MIN = 10.0  # a vehicle the front reaches within this many minutes is in the fire zone
 
 _lock = asyncio.Lock()
@@ -177,7 +177,7 @@ async def _solve(db: AsyncIOMotorDatabase, solver: str, now: datetime, *, replan
     riders = [x for r in reqs if (x := rider(r)) is not None]
     # A metro call-out can open ~1,000 requests at once. Plan the most urgent ones each round (reassigned
     # first, then by deadline); the rest get their turn as these are taken. Keeps a solve well under a second.
-    riders.sort(key=lambda r: (not r.reassigning, r.deadline_min if r.deadline_min is not None else 1e9, -r.priority))
+    riders.sort(key=greedy.priority_key)
     riders = riders[:MAX_RIDERS_PER_SOLVE]
     used = "greedy" if solver == "greedy" else "batched"
     unsafe = await fire_unsafe(db, {v.id: v.loc for v in vehicles}, now)

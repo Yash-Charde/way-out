@@ -28,11 +28,11 @@ from api.dispatch import batch, greedy
 from api.hazard import fire, spread
 from api.sim import world
 
-CALL_MIN = 10.0
+CALL_MIN = 5.0  # every home is called at once; the answers are in by minute 5
 LEAVE_SPREAD_MIN = 20.0
 FIRE_FRAME_MIN = 5.0
 DEADLINE_BUFFER_MIN = 10.0  # same as requests: be gone 10 min before the fire
-CHUNK = 120  # riders per planning round (keeps each Hungarian solve small)
+CHUNK = 30  # riders per planning round (keeps each Hungarian solve small)
 
 LonLat = tuple[float, float]
 
@@ -105,6 +105,7 @@ async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, An
         dl = None if fa is None else fa - DEADLINE_BUFFER_MIN - CALL_MIN
         riders.append(greedy.Rider(id=h["_id"], loc=loc[h["_id"]], need=need, deadline_min=dl))
     rider_by_id = {r.id: r for r in riders}
+    mobility = {r.id for r in riders if r.need.mobility()}
     vehicles = []
     for v in fleet:
         c = (v.get("location") or {}).get("coordinates")
@@ -125,7 +126,7 @@ async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, An
     # Rolling horizon, like the live loop: the most urgent CHUNK riders at a time, each vehicle keeping
     # the riders it already has (committed stops are never reordered).
     by_vehicle: dict[str, list[greedy.Proposal]] = {}
-    queue = sorted(riders, key=lambda r: r.deadline_min if r.deadline_min is not None else math.inf)
+    queue = sorted(riders, key=greedy.priority_key)
     for k in range(0, len(queue), CHUNK):
         result = batch.plan(queue[k : k + CHUNK], vehicles, shelters, net.travel_min)
         rid = {r.id: r for r in queue[k : k + CHUNK]}
@@ -198,6 +199,7 @@ async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, An
 
     # ── homes that leave on their own: to the nearest shelter, spread over LEAVE_SPREAD_MIN ──
     self_evac, stayed, unreached, rider_rows = [], [], [], []
+    rider_ids: list[str] = []
     # People driving themselves go to the general shelters; the medical one is kept for riders.
     names = {s["_id"]: str(s.get("name", "")) async for s in db.shelters.find({}, {"name": 1})}
     general = [s for s in shelters if "medical" not in names.get(s.id, "").lower()] or shelters
@@ -209,6 +211,7 @@ async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, An
         fa = fire_at[hid]
         role = h.get("role")
         if role == "needs_ride":
+            rider_ids.append(hid)
             x = out_riders.get(hid)
             if x is None:  # no vehicle can carry this need (e.g. a stretcher and no ambulance)
                 rider_rows.append([_r(lo), _r(la), None, None, -1, fa])
@@ -242,6 +245,8 @@ async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, An
         k += FIRE_FRAME_MIN
 
     on_time = sum(1 for r in rider_rows if r[2] is not None and (r[5] is None or r[2] <= r[5]))
+    mob_rows = [r for hid, r in zip(rider_ids, rider_rows, strict=True) if hid in mobility]
+    mob_on_time = sum(1 for r in mob_rows if r[2] is not None and (r[5] is None or r[2] <= r[5]))
     late = sum(1 for r in rider_rows if r[2] is not None and r[5] is not None and r[2] > r[5])
     no_vehicle = sum(1 for r in rider_rows if r[2] is None)
     self_late = sum(1 for s in self_evac if s[4] is not None and s[2] > s[4])
@@ -260,6 +265,8 @@ async def build(db: AsyncIOMotorDatabase, *, rng_seed: int = 42) -> dict[str, An
             "homes": len(loc),
             "riders": len(rider_rows),
             "ridersOutBeforeFire": on_time,
+            "mobilityRiders": len(mob_rows),  # wheelchair, lift or stretcher
+            "mobilityOutBeforeFire": mob_on_time,
             "ridersLate": late,
             "ridersNoVehicle": no_vehicle,
             "selfEvac": len(self_evac),

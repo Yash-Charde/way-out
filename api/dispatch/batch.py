@@ -13,7 +13,9 @@ Evacuation changes three things:
    until a seat, wheelchair space or stretcher is missing; then it drops out of the rounds and the
    rest go to the next vehicle (no shelter round trip while anyone else has room).
 2. **Deadlines.** A pair only counts if the pickup makes the rider's deadline (10 min before the fire).
-   Riders being reassigned go first. Riders nobody reaches in time, or who only fit after a shelter
+   Riders being reassigned go first; people who can't walk out (wheelchair, lift, stretcher) get a head
+   start in the order and a heavier weight, and ambulances / lift vans are reserved for them while any wait.
+   Riders nobody reaches in time, or who only fit after a shelter
    drop-off, are placed afterwards like the greedy planner does: soonest vehicle, flagged late.
 3. **No rescuers in the fire.** Vehicles listed in `unsafe` (inside or about to be inside the fire
    front) get no new pickups. Their committed run is left alone; the loop decides about that.
@@ -33,6 +35,7 @@ from api.dispatch.greedy import (
     _State,
     _visit,
     play_committed,
+    priority_key,
 )
 
 BIG = 1e9  # "no pair" in the cost matrix
@@ -48,6 +51,34 @@ def _waste(v: Vehicle, r: Rider) -> float:
     if v.wheelchair and not (r.need.wheelchair or r.need.stretcher or r.need.lift) and v.seats <= 4:
         return SPECIALIST_PENALTY_MIN / 2
     return 0.0
+
+
+def _ambulance(v: Vehicle) -> bool:
+    return v.stretcher > 0
+
+
+def _lift_van(v: Vehicle) -> bool:
+    """A small vehicle that carries wheelchairs (paratransit): few of them, so they're kept for those riders."""
+    return v.wheelchair > 0 and v.seats <= 4 and not v.stretcher
+
+
+def _reserved(v: Vehicle, r: Rider, waiting: list[Rider], st: _State | None = None) -> bool:
+    """Hard reservation: while someone who needs this kind of vehicle is still waiting, it doesn't take a
+    rider who could go in any car. Ambulances: stretcher riders first, then wheelchair riders (a wheelchair
+    rider can share the trip once the stretcher is taken). Lift vans: wheelchair / lift / stretcher only."""
+    n = r.need
+    if _ambulance(v):
+        stretcher_full = st is not None and st.stretcher >= v.stretcher
+        if (
+            not n.stretcher
+            and not (stretcher_full and n.mobility())
+            and any(w.need.stretcher and v.fits(w.need) for w in waiting)
+        ):
+            return True
+        return not n.mobility() and any(w.need.mobility() and v.fits(w.need) for w in waiting)
+    if _lift_van(v):
+        return not n.mobility() and any(w.need.mobility() and v.fits(w.need) for w in waiting)
+    return False
 
 
 def hungarian(cost: list[list[float]]) -> list[int]:
@@ -131,15 +162,13 @@ def plan(
         wait += pickup * r.need.weight()
 
     # ── batched rounds: no shelter hops, deadlines must hold ─────────────
-    pending = sorted(
-        riders, key=lambda r: (not r.reassigning, r.deadline_min if r.deadline_min is not None else math.inf)
-    )
+    pending = sorted(riders, key=priority_key)
     while pending and free:
         cost = [[BIG] * len(free) for _ in pending]
         moves: dict[tuple[int, int], tuple[_State, float]] = {}
         for i, r in enumerate(pending):
             for j, v in enumerate(free):
-                if not v.fits(r.need):
+                if not v.fits(r.need) or _reserved(v, r, pending, states[v.id]):
                     continue
                 nxt = _visit(v, states[v.id], r, shelters, travel, board, allow_hop=False)
                 if nxt is None:
@@ -162,10 +191,11 @@ def plan(
     unservable: list[str] = []
     for must_make in (True, False):
         rest = []
-        for r in pending:
+        for k, r in enumerate(pending):
             best = None
+            waiting = rest + pending[k + 1 :]
             for v in free:
-                if not v.fits(r.need):
+                if not v.fits(r.need) or _reserved(v, r, waiting, states[v.id]):
                     continue
                 nxt = _visit(v, states[v.id], r, shelters, travel, board)
                 if nxt is None:

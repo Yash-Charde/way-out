@@ -73,7 +73,7 @@ async def test_seed_valley_world(db):
     out = await seed.seed(db, scenario="scottsdale-fire", homes=1200, rng_seed=3)
     assert world.active() == "scottsdale-fire" and isinstance(world.network(), Grid)
     assert out["households"] == 1200
-    assert out["vehicles"] == 100 and out["shelters"] == 4 and len(out["zones"]) == 9
+    assert out["vehicles"] == 132 and out["shelters"] == 5 and len(out["zones"]) == 9
     assert await db.zones.count_documents({"status": "ready"}) == 9
     first = await db.households.find_one(sort=[("fireArrivalAt", 1)])
     assert first["zoneId"] in ("zone_sc_3", "zone_sc_6", "zone_sc_9")  # the east column, next to the mountains

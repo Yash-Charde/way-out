@@ -49,7 +49,7 @@ async def seed(
     firstArrivalMin: float = Query(default=90, ge=5, description="minutes until the fire reaches the first home"),
 ) -> dict:
     """Replace the simulated world. Canyon: ~200 homes, 8 vehicles, 2 shelters, 2 zones. North Scottsdale:
-    ~6,000 homes, 100 vehicles (20 ambulances, 60 neighbors), 4 shelters, 9 zones. Real households stay."""
+    ~6,000 homes, 132 vehicles (20 ambulances, 90 neighbors), 5 shelters, 9 zones. Real households stay."""
     _stop_census()  # a census still answering the old world stops here
     async with world_lock:  # never while a solve is writing offers
         result = await sim_seed.seed(

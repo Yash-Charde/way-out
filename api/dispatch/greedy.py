@@ -58,8 +58,24 @@ class Need:
         return (board or BOARD_MIN)[self.kind()]
 
     def weight(self) -> float:
-        """Need-weighted waiting: heavier needs count more."""
-        return 1.0 + self.wheelchair + 2 * self.stretcher + (0.5 if self.lift else 0)
+        """Need-weighted waiting: heavier needs count more. People who can't walk out are who this system is
+        for: few vehicles can carry them and boarding takes 10-15 min, so each minute they wait costs more."""
+        return 1.0 + 2 * self.wheelchair + 4 * self.stretcher + (1.0 if self.lift else 0)
+
+    def mobility(self) -> bool:
+        """Can't walk to a car: wheelchair, lift or stretcher."""
+        return bool(self.wheelchair or self.stretcher or self.lift)
+
+    def head_start_min(self) -> float:
+        """Planned this many minutes earlier than their deadline alone says (see priority_key)."""
+        return 45.0 if self.stretcher else 30.0 if (self.wheelchair or self.lift) else 0.0
+
+
+def priority_key(r: "Rider") -> tuple:
+    """Who gets planned first: riders being reassigned, then by deadline, with a head start for people who
+    can't walk out (their vehicles are few and boarding is slow, so they must be first in line)."""
+    dl = r.deadline_min if r.deadline_min is not None else math.inf
+    return (not r.reassigning, dl - r.need.head_start_min(), -r.priority)
 
 
 @dataclass
@@ -254,7 +270,7 @@ def plan(
 
     order = sorted(
         riders,
-        key=lambda r: (not r.reassigning, r.deadline_min if r.deadline_min is not None else math.inf, -r.priority),
+        key=priority_key,
     )
     proposals: list[Proposal] = []
     deferred: list[Rider] = []
