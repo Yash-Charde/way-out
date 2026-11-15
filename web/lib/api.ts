@@ -34,6 +34,21 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 type Doc = { id: string } & Record<string, unknown>;
 
 /** GET /hazards/fire. Scenario input, not a forecast. */
+/** GET /sim/evacuation. Minutes count from the warning (when the world was seeded). */
+export type Evacuation = {
+  t0: string;
+  callMin: number;
+  endMin: number;
+  fire: { t: number; ring: [number, number][] }[];
+  vehicles: { id: string; name: string; kind: string; seats: number; path: [number, number, number][]; loads: [number, number][]; riders: number }[];
+  riders: [number, number, number | null, number | null, number, number | null][]; // lon, lat, pickup, drop, vehicle, fire
+  selfEvac: [number, number, number, number[], number | null][]; // lon, lat, leave, [lon, lat, min, …], fire
+  stayed: [number, number, number | null][];
+  unreached: [number, number, number | null][];
+  summary: Record<string, number | null>;
+  error?: string;
+};
+
 export type FireView = {
   runId: string;
   label: string;
@@ -111,6 +126,8 @@ export const api = {
   // perSecond > 0: homes are answered in waves, fire-first, so the map lights up like a real call-out.
   census: (perSecond = 0) =>
     call<{ requests?: number; started?: boolean }>("POST", `/sim/census${perSecond ? `?perSecond=${perSecond}` : ""}`),
+  // The whole night as timelines (simulated, planned with the live planner; writes nothing)
+  evacuation: () => call<Evacuation>("GET", "/sim/evacuation"),
   scenario: () =>
     call<{ name: string; title: string; bounds: [[number, number], [number, number]] }>("GET", "/sim/scenario"),
   driveTestStop: () =>
@@ -164,6 +181,8 @@ export type Seats = {
   left: number;
   leftWheelchair: number;
   leftIfAllAccepted: number;
+  onBoard?: number; // seats on board right now
+  laterTrips?: number; // accepted riders after the next shelter drop-off
 };
 export type DriverRun = { vehicle: Doc; offers: RunStop[]; run: RunStop[]; shelters: Doc[]; seats?: Seats; now: string };
 

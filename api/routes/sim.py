@@ -49,7 +49,7 @@ async def seed(
     firstArrivalMin: float = Query(default=90, ge=5, description="minutes until the fire reaches the first home"),
 ) -> dict:
     """Replace the simulated world. Canyon: ~200 homes, 8 vehicles, 2 shelters, 2 zones. North Scottsdale:
-    ~6,000 homes, 30 vehicles, 3 shelters, 9 zones. Real households stay."""
+    ~6,000 homes, 100 vehicles (20 ambulances, 60 neighbors), 4 shelters, 9 zones. Real households stay."""
     _stop_census()  # a census still answering the old world stops here
     async with world_lock:  # never while a solve is writing offers
         result = await sim_seed.seed(
@@ -93,6 +93,35 @@ async def census(
     _background.add(task)
     task.add_done_callback(_background.discard)
     return {"started": True, "perSecond": perSecond, "zones": zone_ids, "simulated": True}
+
+
+@router.get("/evacuation")
+async def evacuation() -> dict:
+    """The whole night as timelines for the console's "Play evacuation": fire outline every 5 min, every
+    vehicle's run (pickups, shelter drop-offs, load), every rider's pickup and drop-off minute, and the homes
+    that drive out on their own. Planned with the live planner and travel model; writes nothing.
+    Minutes count from ignition. Run the census first (riders come from the answers)."""
+    from api.sim import evacuation as evac
+
+    db = get_db()
+    run = await db.hazards.find_one({"_id": "fire_run"}) or {}
+    # A reseed with the same seed keeps the runId, so the key also carries the run's start and the answers.
+    key = (
+        run.get("runId"),
+        str(run.get("ignitedAt") or run.get("updatedAt") or run.get("createdAt")),
+        await db.requests.count_documents({}),
+        await db.households.count_documents({"role": "needs_ride"}),
+        await db.vehicles.count_documents({}),
+    )
+    hit = _EVAC_CACHE.get("last")
+    if hit and hit[0] == key:
+        return hit[1]
+    out = await evac.build(db)
+    _EVAC_CACHE["last"] = (key, out)
+    return out
+
+
+_EVAC_CACHE: dict[str, tuple[tuple, dict]] = {}
 
 
 @router.get("/scenario")

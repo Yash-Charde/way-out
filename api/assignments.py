@@ -252,9 +252,14 @@ async def progress(
 
     else:  # completed
         await rq.transition(db, request_id, "closed", reason="dropped at shelter", by=by, allowed_from={"arrived"})
+        now = utcnow()
         await db.assignments.update_one(
-            {"_id": assignment_id, "status": "accepted"}, {"$set": {"status": "completed", "completedAt": utcnow()}}
+            {"_id": assignment_id, "status": "accepted"}, {"$set": {"status": "completed", "completedAt": now}}
         )
+        # The household is out: the console's "safe" count and the map read this (household.updated).
+        req = await db.requests.find_one({"_id": request_id}, {"householdId": 1})
+        if req and req.get("householdId"):
+            await db.households.update_one({"_id": req["householdId"]}, {"$set": {"safeAt": now}})
         await _vehicle_status(db, a["vehicleId"])
 
     await audit.log(db, "assignment_progress", step, assignmentId=assignment_id, etaMinutes=eta_minutes, by=by)

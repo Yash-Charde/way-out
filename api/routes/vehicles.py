@@ -77,15 +77,35 @@ async def run(vehicle_id: str) -> dict:
 
 
 def seats_summary(v: dict, run: list[dict], offers: list[dict]) -> dict:
-    """Seats and wheelchair spaces: taken by the accepted run (on board or still to pick up), held by live
-    offers, and left. The planner fills a vehicle up to this before giving riders to the next one."""
+    """Seats and wheelchair spaces on this trip: taken (on board or still to pick up before the next shelter
+    drop-off), held by live offers, and left. `laterTrips` = accepted riders after that drop-off.
+    The planner fills a vehicle up to this before giving riders to the next one."""
     cap = v.get("capacity") or {}
 
     def total(rows: list[dict], key: str, default: int) -> int:
         return sum(int(((r.get("request") or {}).get("need") or {}).get(key) or default) for r in rows)
 
-    seats, wc = int(cap.get("seats", 4)), int(cap.get("wheelchair", 0))
-    used, used_wc = total(run, "seats", 1), total(run, "wheelchair", 0)
+    seats, wc, st = int(cap.get("seats", 4)), int(cap.get("wheelchair", 0)), int(cap.get("stretcher", 0))
+
+    def need(r: dict, key: str, default: int) -> int:
+        return int(((r.get("request") or {}).get("need") or {}).get(key) or default)
+
+    # This trip only: riders on board, then the next pickups in stop order until one no longer fits (the
+    # planner sends the vehicle to a shelter there and the rest ride on a later trip).
+    onboard = [r for r in run if (r.get("request") or {}).get("status") == "arrived"]
+    trip = list(onboard)
+    for r in run:
+        if r in onboard:
+            continue
+        rows = [*trip, r]
+        if (
+            sum(need(x, "seats", 1) for x in rows) > seats
+            or sum(need(x, "wheelchair", 0) for x in rows) > wc
+            or sum(need(x, "stretcher", 0) for x in rows) > st
+        ):
+            break
+        trip.append(r)
+    used, used_wc = total(trip, "seats", 1), total(trip, "wheelchair", 0)
     held, held_wc = total(offers, "seats", 1), total(offers, "wheelchair", 0)
     return {
         "capacity": seats,
@@ -97,6 +117,8 @@ def seats_summary(v: dict, run: list[dict], offers: list[dict]) -> dict:
         "left": max(0, seats - used),
         "leftWheelchair": max(0, wc - used_wc),
         "leftIfAllAccepted": max(0, seats - used - held),
+        "onBoard": total(onboard, "seats", 1),
+        "laterTrips": len(run) - len(trip),
     }
 
 

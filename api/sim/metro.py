@@ -42,9 +42,17 @@ NAMED = [  # the demo's drivers keep their names and ids
     ("vh_tom", "agency_van", "Tom", "shea_scottsdale"),
     ("vh_ana", "agency_van", "Ana", "thompson_peak"),
 ]
-EXTRA_PARATRANSIT = ["Rosa M.", "Kevin", "Imani"]
+EXTRA_PARATRANSIT = ["Rosa M.", "Kevin", "Imani", "Grace", "Andre", "Mei", "Victor", "Nadia", "Paul", "Ines", "Tariq"]
 EXTRA_VANS = ["Hector", "Beth", "Omar"]
 BUSES = [("vh_bus_1", "Bus 1 · Ray", "hayden_shea"), ("vh_bus_2", "Bus 2 · Lin", "airpark")]
+# Stretcher patients need an ambulance; without one they could only be escalated, never driven out.
+# City scale: mutual-aid strike teams (20 rigs) for the ~90 stretcher patients the census finds.
+_MEDICS = ["Kai", "Lucia", "Ortiz", "Bree", "Dan", "Amara", "Jules", "Rafi", "Kim", "Sol", "Tia", "Wes",
+           "Abe", "Cara", "Dev", "Esme", "Finn", "Gia", "Hal", "Iris"]  # fmt: skip
+_MEDIC_AT = ["shea_scottsdale", "pima_bell", "airpark", "thompson_peak", "hayden_shea"]
+AMBULANCES = [
+    (f"vh_medic_{k}", f"Medic {k} · {name}", _MEDIC_AT[(k - 1) % len(_MEDIC_AT)]) for k, name in enumerate(_MEDICS, 1)
+]
 NEIGHBOR_NAMES = [
     "Sam",
     "Priya",
@@ -64,6 +72,48 @@ NEIGHBOR_NAMES = [
     "Sofia",
     "Ben",
     "Yara",
+    "Owen",
+    "Leah",
+    "Mateo",
+    "Zoe",
+    "Ivan",
+    "Nora",
+    "Kofi",
+    "Ruth",
+    "Hugo",
+    "Maya",
+    "Eli",
+    "Ana B.",
+    "Tom R.",
+    "Lily",
+    "Jamal",
+    "Sara",
+    "Pedro",
+    "Ava",
+    "Ken",
+    "June",
+    "Luca",
+    "Ines B.",
+    "Omar K.",
+    "Rhea",
+    "Seth",
+    "Cleo",
+    "Arjun",
+    "Beth K.",
+    "Gus",
+    "Dina",
+    "Felix",
+    "Mina",
+    "Rex",
+    "Tara",
+    "Vik",
+    "Wren",
+    "Xavi",
+    "Yuki",
+    "Zane",
+    "Alma",
+    "Bo",
+    "Cyrus",
 ]
 
 
@@ -127,6 +177,7 @@ def _vehicle(_id: str, kind: str, name: str, loc: tuple[float, float], now: date
         "paratransit": ({"seats": 4, "wheelchair": 2, "stretcher": 0}, 2, True),
         "agency_van": ({"seats": 8, "wheelchair": 0, "stretcher": 0}, 2, False),
         "bus": ({"seats": 30, "wheelchair": 1, "stretcher": 0}, 2, True),
+        "ambulance": ({"seats": 2, "wheelchair": 1, "stretcher": 1}, 2, True),
         "neighbor": ({"seats": 3, "wheelchair": 0, "stretcher": 0}, 1, False),
     }[kind]
     return {
@@ -229,7 +280,8 @@ async def seed(
     from api.hazard.spread import FireRun
 
     run = FireRun(new_id("fire"), sc["name"], ignition, wind_from, ignited_at)
-    await db.hazards.replace_one({"_id": fire.RUN_ID}, fire.run_doc(run), upsert=True)
+    # seededAt = when the warning went out (the evacuation replay's minute 0)
+    await db.hazards.replace_one({"_id": fire.RUN_ID}, {**fire.run_doc(run), "seededAt": now}, upsert=True)
 
     # ── vehicles: vans and buses at staging points on the south and west edges, neighbors at home ──
     stage = {k: tuple(v) for k, v in sc["staging"].items()}
@@ -244,6 +296,7 @@ async def seed(
         for k, name in enumerate(EXTRA_VANS, start=1)
     ]
     vehicles += [_vehicle(i, "bus", name, stage[at], now) for i, name, at in BUSES]
+    vehicles += [_vehicle(i, "ambulance", name, stage[at], now) for i, name, at in AMBULANCES]
     helpers = [d for d in docs if data.persona_group(base._persona(d["personaId"])) == "other"]
     for k, (name, home) in enumerate(
         zip(

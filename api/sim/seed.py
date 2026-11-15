@@ -304,7 +304,8 @@ async def seed(
     from api.hazard.spread import FireRun
 
     run = FireRun(new_id("fire"), scenario, (float(ignition[0]), float(ignition[1])), wind_from, ignited_at)
-    await db.hazards.replace_one({"_id": fire.RUN_ID}, fire.run_doc(run), upsert=True)
+    # seededAt = when the warning went out (the evacuation replay's minute 0)
+    await db.hazards.replace_one({"_id": fire.RUN_ID}, {**fire.run_doc(run), "seededAt": now}, upsert=True)
 
     # ── vehicles ────────────────────────────────────────────────────────────
     starts = {

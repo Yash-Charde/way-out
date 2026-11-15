@@ -124,6 +124,19 @@ async def tick(db: AsyncIOMotorDatabase, *, now: datetime | None = None, dt_s: f
             (a for a in run if reqs.get(a["requestId"], {}).get("status") in ("driver_accepted", "en_route")), None
         )
 
+    def need_of(a: dict[str, Any]) -> greedy.Need:
+        return greedy.Need.of(reqs.get(a["requestId"], {}).get("need"))
+
+    def fits_now(v: dict[str, Any], onboard: list[dict[str, Any]], nxt: dict[str, Any]) -> bool:
+        """Does the next rider fit next to the riders already on board (seats, wheelchair, stretcher)?"""
+        cap = v.get("capacity") or {}
+        rows = [need_of(a) for a in onboard] + [need_of(nxt)]
+        return (
+            sum(n.seats for n in rows) <= int(cap.get("seats", 4))
+            and sum(n.wheelchair for n in rows) <= int(cap.get("wheelchair", 0))
+            and sum(n.stretcher for n in rows) <= int(cap.get("stretcher", 0))
+        )
+
     hh_ids = [reqs[a["requestId"]]["householdId"] for run in runs.values() if (a := next_stop(run))]
     homes = {h["_id"]: h async for h in db.households.find({"_id": {"$in": hh_ids}}, {"location": 1})} if hh_ids else {}
     moves: list[tuple[dict[str, Any], dict[str, Any]]] = []
@@ -135,6 +148,10 @@ async def tick(db: AsyncIOMotorDatabase, *, now: datetime | None = None, dt_s: f
         run = runs.get(v["_id"], [])
         onboard = [a for a in run if reqs.get(a["requestId"], {}).get("status") == "arrived"]
         nxt = next_stop(run)
+        # The planner chains trips: when the next rider no longer fits, it planned a shelter drop-off first.
+        # Drive it the same way, so a 3-seat car never carries more than 3 (it carried the whole run before).
+        if nxt is not None and onboard and not fits_now(v, onboard, nxt):
+            nxt = None
 
         target, a_next = None, None
         if nxt is not None:

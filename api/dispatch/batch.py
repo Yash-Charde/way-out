@@ -37,6 +37,17 @@ from api.dispatch.greedy import (
 
 BIG = 1e9  # "no pair" in the cost matrix
 REASSIGN_BONUS_MIN = 60.0  # a rider being reassigned beats a fresh one when both want the same van
+# Keep scarce vehicles for the riders only they can carry: an ambulance (stretcher) or a lift van
+# (wheelchair) picking up someone who walks costs this many extra minutes in the matching.
+SPECIALIST_PENALTY_MIN = 30.0
+
+
+def _waste(v: Vehicle, r: Rider) -> float:
+    if v.stretcher and not r.need.stretcher:
+        return SPECIALIST_PENALTY_MIN
+    if v.wheelchair and not (r.need.wheelchair or r.need.stretcher or r.need.lift) and v.seats <= 4:
+        return SPECIALIST_PENALTY_MIN / 2
+    return 0.0
 
 
 def hungarian(cost: list[list[float]]) -> list[int]:
@@ -136,7 +147,7 @@ def plan(
                 st, pickup = nxt
                 if r.deadline_min is not None and pickup > r.deadline_min:
                     continue
-                cost[i][j] = pickup * r.need.weight() - (REASSIGN_BONUS_MIN if r.reassigning else 0.0)
+                cost[i][j] = pickup * r.need.weight() + _waste(v, r) - (REASSIGN_BONUS_MIN if r.reassigning else 0.0)
                 moves[(i, j)] = nxt
         pairs = match(cost)
         if not pairs:
@@ -162,7 +173,7 @@ def plan(
                 st, pickup = nxt
                 if must_make and r.deadline_min is not None and pickup > r.deadline_min:
                     continue
-                if best is None or pickup < best[2]:
+                if best is None or pickup + _waste(v, r) < best[2] + _waste(best[0], r):
                     best = (v, st, pickup)
             if best is None:
                 rest.append(r)

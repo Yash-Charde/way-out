@@ -178,4 +178,6 @@ async def test_try_it_volunteer_gets_a_car_at_their_house_and_one_per_phone(clie
         "left": 3,
         "leftWheelchair": 0,
         "leftIfAllAccepted": 3,
+        "onBoard": 0,
+        "laterTrips": 0,
     }

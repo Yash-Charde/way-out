@@ -19,6 +19,7 @@ import { addRelief, wayOutStyle } from "./mapStyle";
 import { BasemapSwitcher } from "@/components/BasemapSwitcher";
 import { RASTER, useBasemap, type Basemap } from "@/lib/basemaps";
 import type { FireView } from "@/lib/api";
+import { useEvacLayers } from "./Evacuation";
 
 type Doc = { id: string } & Record<string, unknown>;
 type LonLat = [number, number];
@@ -118,6 +119,8 @@ function lonlat(doc: unknown): LonLat | null {
   return c && c.length >= 2 ? [Number(c[0]), Number(c[1])] : null;
 }
 
+const EVAC_KEEP = new Set(["zones", "shelters", "shelter-names"]);
+
 function DeckOverlay(props: MapboxOverlayProps) {
   const overlay = useControl<MapboxOverlay>(() => new MapboxOverlay(props));
   overlay.setProps(props);
@@ -212,6 +215,8 @@ export default function MapView(p: MapViewProps) {
     return out;
   }, [p.assignments, p.requests, homeById, vehicleById]);
 
+  // "Play evacuation" (Evacuation.tsx) swaps the live layers for its own, keeping zones and shelters.
+  const evac = useEvacLayers((x) => x.layers);
   const layers = [
     new PolygonLayer<Doc>({
       id: "zones",
@@ -490,7 +495,7 @@ export default function MapView(p: MapViewProps) {
     >
       <DeckOverlay
         interleaved={false}
-        layers={layers}
+        layers={evac ? [...layers.filter((l) => EVAC_KEEP.has(String(l.id))), ...evac] : layers}
         pickingRadius={10} // small dots, big fingers
         onClick={(info: PickingInfo) => {
           if (p.drawing) return false; // the map click handles the tool

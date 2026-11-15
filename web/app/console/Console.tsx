@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapLegend } from "@/components/MapLegend";
 import { SimBadge } from "@/components/Shell";
 import { FireReplay } from "./FireReplay";
+import { EvacuationPlayer } from "./Evacuation";
 import type { FireView } from "@/lib/api";
 import { AnimatedNumber, AppHeader, CloseButton } from "@/components/ui";
 import { api, DEFAULT_SCENARIO, SCENARIOS, type Scenario, type StandIns } from "@/lib/api";
@@ -28,7 +29,7 @@ type LonLat = [number, number];
 type Statics = { hazards: Doc[]; closures: Doc[]; shelters: Doc[]; zones: Doc[] };
 
 const OPEN = new Set(["received", "approved", "driver_accepted", "en_route", "arrived", "reassigning"]);
-const ON_A_VAN = new Set(["driver_accepted", "en_route", "arrived"]);
+const COMING = new Set(["driver_accepted", "en_route"]);
 const HORIZON_MIN = 180; // full time-left bar
 const PANEL = "glass z-10";
 
@@ -183,6 +184,7 @@ export function Console() {
   const [drawing, setDrawing] = useState<LonLat[] | null>(null);
   const [panels, setPanels] = useState(true);
   const [fireView, setFireView] = useState<FireView | null>(null);
+  const [evacOn, setEvacOn] = useState(false); // "Play evacuation": the whole night on the map
   // Which world is loaded (North Scottsdale or Oak Creek Canyon): frames the map and names the KPI strip.
   const [scn, setScn] = useState<{ name: string; title: string; bounds: [[number, number], [number, number]] } | null>(null);
   const loadScenario = useCallback(() => {
@@ -237,8 +239,11 @@ export function Console() {
     homes: hh.length,
     reached: hh.filter((h) => h.reach === "answered").length,
     needRide: hh.filter((h) => h.role === "needs_ride").length,
-    onVan: Object.values(requests).filter((r) => ON_A_VAN.has(String(r.status))).length,
-    out: hh.filter((h) => h.role === "left").length,
+    // Riders actually in a vehicle (picked up, not yet at a shelter). Accepted-but-not-picked-up is "coming".
+    onVan: Object.values(requests).filter((r) => r.status === "arrived").length,
+    coming: Object.values(requests).filter((r) => COMING.has(String(r.status))).length,
+    // Safe = left on their own + dropped at a shelter by a driver (households.safeAt).
+    out: hh.filter((h) => h.role === "left" || h.safeAt).length,
   };
 
   const openRequests = useMemo(
@@ -402,8 +407,9 @@ export function Console() {
         <Stat label="homes" value={counts.homes} />
         <Stat label="reached" value={counts.reached} />
         <Stat label="need ride" value={counts.needRide} tone="text-fire" />
+        <Stat label="coming" value={counts.coming} />
         <Stat label="on a van" value={counts.onVan} tone="text-vehicle" />
-        <Stat label="out" value={counts.out} tone="text-out" />
+        <Stat label="safe" value={counts.out} tone="text-out" />
       </div>
 
       {alert && (
@@ -436,12 +442,13 @@ export function Console() {
       {panels && (
         <section className={`${PANEL} absolute top-[4.6rem] bottom-[4.25rem] left-3 flex w-[22rem] flex-col`}>
           {/* Narrow screens: the census strip lives here instead of between the panels. */}
-          <div className="grid grid-cols-5 border-b border-line py-2 min-[1200px]:hidden">
+          <div className="grid grid-cols-6 border-b border-line py-2 min-[1200px]:hidden">
             <Stat label="homes" value={counts.homes} />
             <Stat label="reached" value={counts.reached} />
             <Stat label="need" value={counts.needRide} tone="text-fire" />
+            <Stat label="coming" value={counts.coming} />
             <Stat label="on van" value={counts.onVan} tone="text-vehicle" />
-            <Stat label="out" value={counts.out} tone="text-out" />
+            <Stat label="safe" value={counts.out} tone="text-out" />
           </div>
           <PanelTitle aside={<span className="chip">by deadline</span>}>
             Open requests
@@ -816,6 +823,13 @@ export function Console() {
         >
           {busy === "Solve" ? "Solving…" : "Solve now"}
         </button>
+        <button
+          className={`btn min-h-8 ${evacOn ? "border-accent! text-accent" : ""}`}
+          onClick={() => setEvacOn((v) => !v)}
+          title="Play the whole night: fire, pickups, vehicles to shelters, everyone leaving (simulated)"
+        >
+          {evacOn ? "Stop evacuation" : "Play evacuation"}
+        </button>
         {standIns?.drivers ? (
           <button
             className="btn min-h-8 border-fire/50 text-fire"
@@ -894,6 +908,9 @@ export function Console() {
           panels ? "right-[25.5rem] left-[23.5rem]" : "right-3 left-3"
         }`}
       >
+        {evacOn ? (
+          <EvacuationPlayer onClose={() => setEvacOn(false)} className="pointer-events-auto w-full max-w-[44rem]" />
+        ) : (
         <FireReplay
           runKey={fireRunKey}
           onFire={onFire}
@@ -904,6 +921,7 @@ export function Console() {
           }
           className="pointer-events-auto w-full max-w-[40rem]"
         />
+        )}
       </div>
 
       {!panels && (

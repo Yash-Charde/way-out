@@ -120,7 +120,7 @@ function SeatsCard({ seats }: { seats: Seats }) {
   return (
     <section className="card rounded-3xl! p-4" aria-label="Seats">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="eyebrow">Seats</span>
+        <span className="eyebrow">Seats this trip</span>
         <span className={`text-sm font-semibold ${full ? "text-help" : "text-out"}`}>
           {full ? "Full: new riders go to the next driver" : `${seats.left} of ${seats.capacity} left`}
         </span>
@@ -141,6 +141,11 @@ function SeatsCard({ seats }: { seats: Seats }) {
         {seats.wheelchair > 0 && (
           <span>
             Wheelchair spaces: {seats.leftWheelchair} of {seats.wheelchair} left
+          </span>
+        )}
+        {(seats.laterTrips ?? 0) > 0 && (
+          <span>
+            Then shelter drop-off, {seats.laterTrips} more {seats.laterTrips === 1 ? "rider" : "riders"} on the next trip
           </span>
         )}
         {seats.offered > 0 && (
