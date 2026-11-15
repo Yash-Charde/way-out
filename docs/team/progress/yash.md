@@ -27,7 +27,7 @@ can see where you are on `develop` after each merge.
 
 ## Notes
 
-- **8:05 PM Sat:** D2-03 merged; D2-06 (M2) in review. Seeded check: closing SR 89A north of Indian Gardens revokes 7 accepted pickups, all 7 residents told, 2 re-offered to uphill neighbors and accepted, 5 flagged unservable. Next: fire replay (D2-07), man-down (D2-08).
+- **7:50 PM Sat:** D2-03 merged; D2-06 (M2) in review. Seeded check: closing SR 89A north of Indian Gardens revokes 7 accepted pickups, all 7 residents told, 2 re-offered to uphill neighbors and accepted, 5 flagged unservable. Next: fire replay (D2-07), man-down (D2-08).
 
 - **7:45 PM Sat:** D2-05 merged. Console map in review. Basemap is OpenFreeMap Dark (free, no key; CARTO now needs a key); falls back to a plain dark background offline. Next: revoke (D2-06), fire replay (D2-07), man-down (D2-08).
 
