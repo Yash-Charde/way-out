@@ -123,3 +123,15 @@ async def test_sim_routes(client, db):
     res = await client.post("/sim/control", json={"standIns": {"approval": True}})
     assert res.json()["standIns"] == {"voice": False, "drivers": False, "approval": True}
     assert (await client.get("/sim/control")).json()["standIns"]["approval"] is True
+
+
+async def test_hazards_returns_every_static_map_layer(client, db):
+    await client.post("/sim/seed", params={"homes": 10})
+    await client.post(
+        "/roads/closures",
+        json={"geometry": {"type": "LineString", "coordinates": [[-111.7335, 34.915], [-111.736, 34.92]]}},
+    )
+    body = (await client.get("/hazards")).json()
+    assert set(body) >= {"hazards", "closures", "shelters", "zones"}
+    assert len(body["shelters"]) == 2 and len(body["closures"]) == 1
+    assert all(z["polygon"]["type"] == "Polygon" for z in body["zones"]) and len(body["zones"]) == 2

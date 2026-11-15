@@ -15,6 +15,9 @@ async def list_hazards() -> dict:
     return {
         "hazards": [out(h) async for h in db.hazards.find({})],
         "closures": [out(c) async for c in db.roadClosures.find({})],
+        "shelters": [out(x) async for x in db.shelters.find({})],
+        # zone outlines (GET /zones leaves the polygon out); live status still comes from zone.updated
+        "zones": [out(z) async for z in db.zones.find({}, {"name": 1, "status": 1, "polygon": 1})],
     }
 
 
