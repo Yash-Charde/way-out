@@ -97,3 +97,13 @@ Every number on a slide or on Devpost comes from this file. Format: **ID · clai
 | C-02 | Sedona city | 5,039 households; 38.6% age 65+; 21.1% of households = 65+ living alone; 6.3% ambulatory disability; 1.4% no vehicle; 13.1% Spanish-speaking households | same | accessed 2026-11-14 | https://data.census.gov/table/ACSDP5Y2023.DP02?g=1600000US0465350 |
 | C-03 | Arizona comparison | 18.6% age 65+ | same | accessed 2026-11-14 | https://data.census.gov/table/ACSDP5Y2023.DP05?g=0400000US04 |
 | C-04 | Tract 16.02 contains Midgley Bridge, Slide Rock State Park and Pine Flat (Census geocoder) | — | U.S. Census Geocoder (ACS2023 vintage) | accessed 2026-11-14 | https://geocoding.geo.census.gov/geocoder/ |
+
+## H. Simulation results (A-09) — `data/sim-results.json`
+
+Simulated, not observed. Generated 2026-11-15T02:17:13Z from git `a4de1ed` (PR #58, Yash, D2-09). 200 simulated homes, 50 runs per setting. Settings from `docs/story/impact.md`.
+
+| ID | Claim | Exact figure | Outlet | Date | Link |
+|---|---|---|---|---|---|
+| X-01 | Share of people who needed a ride picked up before their deadline: Way Out (greedy dispatch) vs today's 911 queue | 90.9% vs 47.6% (middle-setting medians); range 86.2–95.9% vs 36.6–52.7% across low/middle/high | Way Out simulation, `headline` | 2026-11-14 | `data/sim-results.json` |
+| X-02 | Today, if only 55% of riders call 911 | 33.8% (middle); 26.5–39.3% across settings | Way Out simulation, `sensitivity.today55` | 2026-11-14 | `data/sim-results.json` |
+| X-03 | Today, if 911 could also dispatch the neighbor cars | 65.6% (middle); 57.1–67.3% across settings | Way Out simulation, `sensitivity.todayWithNeighbors` | 2026-11-14 | `data/sim-results.json` |

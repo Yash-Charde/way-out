@@ -51,7 +51,7 @@ Drivers are protected too. The driver app shows fire distance, flags a route int
 - **Understanding:** Gemini Flash turns each answer into a structured update to the household record (JSON schema output), including corrections mid-call ("actually, my husband is here").
 - **Honesty, enforced in code:** the model never writes ride status, ETAs, driver names or promises. Every sentence about a ride is a fixed template chosen by the request's status, and a guard drops any model acknowledgment that sounds like a promise or contains a digit. Claude Opus grades every agent line in our evals.
 - **Data:** MongoDB Atlas for households, requests, vehicles and offers: geo queries, Vector Search for de-duplicating callers, and change streams that push every update to the dispatcher's map over a WebSocket.
-- **Dispatch:** Google OR-Tools solves a pickup-and-delivery routing problem with time windows and capacities, re-solved on every change. Greedy earliest-deadline-first is the baseline and fallback.
+- **Dispatch:** a greedy earliest-deadline-first dispatcher matches each person to a vehicle with the right seats, wheelchair space and crew, and re-plans on every change. *(Only if shipped:* Google OR-Tools pickup-and-delivery with time windows and capacities; the sim marks it "not built" as of 7 PM Saturday.*)*
 - **Atomic accept:** a driver's accept is a single compare-and-set, so two drivers tapping the same offer can't both win. Request status changes only along legal transitions, with an audit log.
 - **Fire deadlines:** elliptical (FARSITE-style) spread from satellite fire detections and wind gives each home a deadline. It's a scenario input, not a validated forecast.
 - **Triggers:** TinyFish watches Ready, Set, Go status pages and starts the calls when a zone changes.
@@ -83,7 +83,8 @@ Drivers are protected too. The driver app shows fire distance, flags a route int
 
 - A real phone call that updates a dispatcher's map while the person is still talking, including a mid-call correction.
 - **[__]/[__]** agent turns passed the honesty judge (no promise before a driver accepted).
-- In simulation, **[__]%** of people who needed a ride were picked up before their deadline, vs **[__]%** for greedy dispatch (median over [__] runs, range [__]–[__]).
+- In simulation, **91%** of people who needed a ride were picked up before their deadline with Way Out, vs **48%** with today's 911 queue (median of 50 runs per setting; range 86–96% vs 37–53% across low, middle and high settings). *Simulated: 200 homes, Oak Creek Canyon scenario* (X-01).
+  - That baseline is generous to today: it assumes every person who needs a ride gets through to 911. If only 55% call, today drops to 34% (X-02). Even if 911 could also send the neighbors' cars, today reaches 66% (X-03).
 - Median voice turn latency **[__] ms** (p95 [__] ms).
 - 77 backend tests, including every illegal status transition and 20 concurrent accepts.
 - 22 sourced facts behind every number in our story; nothing on a slide without a citation.
@@ -103,7 +104,7 @@ Drivers are protected too. The driver app shows fire distance, flags a route int
 
 ## Built with
 
-`python` `fastapi` `mongodb-atlas` `atlas-vector-search` `google-or-tools` `gemini` `cartesia` `claude` `tinyfish` `tiger-data` `timescaledb` `next.js` `tailwindcss` `shadcn-ui` `maplibre` `deck.gl` `vultr` `caddy` `vercel` `godaddy-registry` `nasa-firms` `amazon-bedrock` *(only if shipped)*
+`python` `fastapi` `mongodb-atlas` `atlas-vector-search` `google-or-tools` *(only if shipped)* `gemini` `cartesia` `claude` `tinyfish` `tiger-data` `timescaledb` `next.js` `tailwindcss` `shadcn-ui` `maplibre` `deck.gl` `vultr` `caddy` `vercel` `godaddy-registry` `nasa-firms` `amazon-bedrock` *(only if shipped)*
 
 ## AI use disclosure
 

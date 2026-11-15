@@ -17,10 +17,29 @@ Agree these with Yash **before** he runs the sim, so the numbers on slide 7 and 
 ## The one chart (slide 7 / Devpost)
 
 - **Y:** % of people who needed a ride and were picked up before their deadline.
-- **Bars:** "Today (911 queue)" vs "Greedy dispatch" vs "Way Out (OR-Tools)".
+- **Bars:** "Today (911 queue)" vs "Way Out (greedy dispatch)". Two bars: the OR-Tools bar is P1 and not built (`sim-results.json` → `available: false`).
 - **Each bar:** median over at least 20 runs, with a whisker from min to max across the low/middle/high settings.
 - **Label:** "Simulated: 200 homes, Oak Creek Canyon scenario" under the chart.
 - Use **blue for Way Out and orange for the baseline** (not red/green), and write the number on each bar.
+
+## Results (from `data/sim-results.json`, PR #58)
+
+Simulated: 200 homes, Oak Creek Canyon scenario. Metric: share of people who needed a ride picked up before their deadline (10 minutes before the fire reaches the home). 50 runs per setting, 150 in all.
+
+| Bar | Low | Middle (headline) | High |
+|---|---|---|---|
+| Today (911 queue) | 36.6% | **47.6%** | 52.7% |
+| Way Out (greedy dispatch) | 86.2% | **90.9%** | 95.9% |
+
+Headline (X-01): **91% vs 48%**, range 86–96% vs 37–53% across the three settings.
+
+**Read the baseline correctly.** Yash's notes on the run:
+
+- **Today is modeled as generously as possible.** Every person who needs a ride calls 911 (`todayCallShare: 1.0`), as this sheet's row 13 says. Yash's task file used 55%; that is kept as an extra comparison: today drops to **33.8%** (middle; 26.5–39.3%) (X-02).
+- **911 dispatches agency vehicles only** (`today911FleetExcludesNeighbors: true`). If 911 could also send the neighbor cars, today reaches **65.6%** (middle; 57.1–67.3%) (X-03). Way Out still leads by about 25 points, so the gain is not only from adding neighbors.
+- **"Greedy" is Way Out's own dispatcher**, not a baseline. Compare against "today's 911 queue".
+
+Assumptions Yash added beyond this sheet (all in the file's `assumptions` block): 60 calls/min, 2.5 min per answered call, retries at 2 and 5 min then a text, door check at 30 min, 2 min from approve to driver accept, 5 min to unload, SR 89A as one road at 35 km/h with side streets at 15 km/h, and the elliptical fire spread from the scenario (a scenario input, not a forecast).
 
 ## What we will **not** claim
 

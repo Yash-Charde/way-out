@@ -21,7 +21,7 @@
 | 1:45 | Prem | Triggers the SR 89A closure (fire jumps the road) | Aarya: "Now the fire jumps 89A, the canyon's main road out. No route reaches Rosa in time." · Rosa's phone: **"Your driver can no longer reach you. You're still at the top of the list. I'll call the moment a new driver accepts. If you can leave safely, leave now."** |
 | 2:00 | Yash | Taps the old offer again (late tap) | Aarya: "A neighbor uphill who's already leaving accepts. And the old driver's late tap? Rejected. Exactly one driver wins." |
 | 2:15 | Yash | Drops the phone on the table | Aarya: "Drivers matter too. Phone drops, goes still: 'Are you OK?' No answer: MAN DOWN on the console, with coordinates." |
-| 2:30 | Prem | Opens `/system` | Aarya: "In simulation, on-time pickups versus a greedy baseline, with ranges. Every call judged for honesty. Latency." *(read the real numbers from the screen, and say "simulated")* |
+| 2:30 | Prem | Opens `/system` | Aarya: "In simulation, 91% picked up before their deadline with Way Out, versus 48% with today's 911 queue, with ranges. Every call judged for honesty. Latency." *(read the real numbers from the screen, and say "simulated")* |
 | 2:50 | Aarya | Close slide | **"The van was ready. Nobody called. Everyone deserves a way out."** |
 
 ## 2-minute version (video / short slot)

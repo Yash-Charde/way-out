@@ -15,7 +15,7 @@ can see where you are on `develop` after each merge.
 | A-06 | 6:30–10:00 | Deck v1 | `feat/aarya` | ✅ done (v1) | deck link in `docs/story/README.md`; slide 7 numbers wait for A-09 |
 | A-07 | 10:00–12:00 | Demo script + Q&A | `feat/aarya` | ✅ done | `docs/story/demo.md` |
 | A-08 | 12:00–1:00 AM | Devpost draft | `feat/aarya` | ✅ drafted | #43 · `docs/story/devpost.md` (+ Future of Work, prize opt-ins); save on Devpost, don't submit |
-| A-09 | 3:00–5:00 | Impact numbers | `feat/aarya` | ⛔ blocked | assumptions in `docs/story/impact.md`; waiting on Yash's D2-09 (`data/sim-results.json`, still ⬜ at 5:53 PM) |
+| A-09 | 3:00–5:00 | Impact numbers | `feat/aarya` | 🟡 sim numbers in | 91% vs 48% (X-01) in `devpost.md`, `demo.md`, `expo.md`; results + baseline notes in `impact.md`; honesty + latency blanks wait on Deep's D1-09; deck slide 7 still to update |
 | A-10 | 5:00–8:30 | Rehearse ×3 | `feat/aarya` | 🟡 prep done | shot list + rehearsal log in `docs/story/expo.md` |
 | A-11 | by 10:00 AM | Final deck, final Devpost with Prem: links (live app, repo, video),… | `feat/aarya` | ⬜ todo | |
 | A-12 | 12:00–2:00 PM | Expo: you tell the story (first 20 seconds) and handle Q&A | `feat/aarya` | 🟡 prep done | expo cheat sheet in `docs/story/expo.md` |
@@ -39,3 +39,4 @@ can see where you are on `develop` after each merge.
 - 6:25 PM: Vultr VM `wayout` running at 45.77.121.104 on MLH credit ($20/mo). Docker + firewall installed. CI deploy key (`wayout-ci-deploy`) is on the VM; private half goes to Yash privately. Domain is Deep's (GoDaddy). `bootstrap-vm.sh` runs once the domain and `MONGODB_URI` exist.
 - 6:50 PM: Atlas ready: new org "Way Out SunHacks" (Aarya's old org didn't allow new projects), project `way-out`, free M0 `wayout` in us-west-2, network 0.0.0.0/0. Ping + write to `wayout_dev` from the VM passed. `MONGODB_URI` is in Aarya's local secrets.env (never committed). Only the domain is left before `bootstrap-vm.sh`.
 - 7:16 PM: `bootstrap-vm.sh` ran on the VM with the temporary domain `45-77-121-104.sslip.io` (Deep). `/opt/wayout` has `.env` + dev/staging/prod.env (mode 600). API URLs: `https://api-dev.45-77-121-104.sslip.io`, `api-staging.`, `api.`. Still missing keys: Gemini, Anthropic, FIRMS, Tiger Data, AWS/Bedrock. When the GoDaddy domain exists: re-run bootstrap with it (or edit `/opt/wayout/.env` + `PUBLIC_API_URL` in each env file).
+- 7:29 PM: D2-09 landed (#58). Fixed the comparison: Way Out (greedy) 91% vs **today's 911 queue** 48%, not "vs greedy". Baseline is generous to today (everyone calls 911; agency vehicles only); 55%-call and with-neighbors variants are X-02 / X-03. OR-Tools is not built, so Devpost marks it "only if shipped".
