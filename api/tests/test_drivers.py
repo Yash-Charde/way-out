@@ -122,3 +122,17 @@ async def test_full_run_ends_at_the_shelter(db):
     # vans end at a shelter and are free again
     async for v in db.vehicles.find({"_id": {"$in": ["vh_luis", "vh_maria"]}}):
         assert v["status"] == "idle"
+
+
+async def test_gps_far_from_the_scenario_does_not_move_the_van(client, db):
+    """A demo phone in Tempe must not drag Luis 150 km out of Oak Creek Canyon."""
+    await seed.seed(db, homes=5)
+    before = (await db.vehicles.find_one({"_id": "vh_luis"}))["location"]
+    res = (await client.post("/vehicles/vh_luis/position", json={"lon": -111.94, "lat": 33.42})).json()  # Tempe
+    assert res == {"ok": True, "applied": False, "reason": "outside the scenario area"}
+    luis = await db.vehicles.find_one({"_id": "vh_luis"})
+    assert luis["location"] == before and luis["phoneSeenAt"]  # still owned by the phone
+
+    near = (await client.post("/vehicles/vh_luis/position", json={"lon": -111.7615, "lat": 34.8705})).json()  # Uptown
+    assert near["applied"] is True
+    assert (await db.vehicles.find_one({"_id": "vh_luis"}))["location"]["coordinates"] == [-111.7615, 34.8705]

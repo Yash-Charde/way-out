@@ -152,6 +152,7 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
   const [now, setNow] = useState(() => Date.now());
   const [gps, setGps] = useState<Gps | null>(null);
   const [gpsState, setGpsState] = useState<"off" | "on" | "denied">("off");
+  const [gpsApplied, setGpsApplied] = useState(true); // false: phone is outside the scenario area (demo)
   const [changed, setChanged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -207,7 +208,10 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
         setGpsState("on");
         if (Date.now() - lastSent.current > 2000) {
           lastSent.current = Date.now();
-          void api.position(vehicleId, { ...g, heading: g.heading ?? 0, speedMps: g.speedMps ?? 0 }).catch(() => undefined);
+          void api
+            .position(vehicleId, { ...g, heading: g.heading ?? 0, speedMps: g.speedMps ?? 0 })
+            .then((r) => setGpsApplied((r as { applied?: boolean }).applied !== false))
+            .catch(() => undefined);
         }
       },
       (err) => setGpsState(err.code === err.PERMISSION_DENIED ? "denied" : "off"),
@@ -265,8 +269,15 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
             <span className={`h-2 w-2 rounded-full ${connected ? "bg-out" : "bg-unknown"}`} />
             {connected ? "live" : "reconnecting"}
           </span>
-          <span className={gpsState === "on" ? "text-out" : gpsState === "denied" ? "text-help" : ""}>
-            GPS {gpsState === "on" ? "on" : gpsState === "denied" ? "blocked: allow location" : "off"}
+          <span className={gpsState === "on" && gpsApplied ? "text-out" : gpsState === "off" ? "" : "text-help"}>
+            GPS{" "}
+            {gpsState === "denied"
+              ? "blocked: allow location"
+              : gpsState === "off"
+                ? "off"
+                : gpsApplied
+                  ? "on"
+                  : "on · outside the canyon, van stays put (demo)"}
           </span>
         </div>
       </header>
@@ -325,7 +336,11 @@ function DriverScreen({ vehicleId }: { vehicleId: string }) {
                 disabled={busy}
                 onClick={() =>
                   act(() =>
-                    api.progress(current.id, "en_route", etaFrom(gps, current.household.location, current.etaMinutes)),
+                    api.progress(
+                      current.id,
+                      "en_route",
+                      etaFrom(gpsApplied ? gps : null, current.household.location, current.etaMinutes),
+                    ),
                   )
                 }
               >
