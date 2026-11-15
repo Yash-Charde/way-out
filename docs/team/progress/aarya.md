@@ -19,7 +19,7 @@ can see where you are on `develop` after each merge.
 | A-10 | 5:00–8:30 | Rehearse ×3 | `feat/aarya` | 🟡 prep done | shot list + rehearsal log in `docs/story/expo.md` |
 | A-11 | by 10:00 AM | Final deck, final Devpost with Prem: links (live app, repo, video),… | `feat/aarya` | ⬜ todo | |
 | A-12 | 12:00–2:00 PM | Expo: you tell the story (first 20 seconds) and handle Q&A | `feat/aarya` | 🟡 prep done | expo cheat sheet in `docs/story/expo.md` |
-| A-13 | 3:45–5:15 PM | Go-live accounts (from P-04): Atlas, secrets.env, Vultr VM, domain + DNS, deploy key | `feat/aarya` | 🟡 VM + Atlas done; domain left | #49 · Vultr VM `wayout` 45.77.121.104 (Docker + ufw), CI deploy key works; Atlas org "Way Out SunHacks" → project `way-out` → free cluster `wayout` (AWS Oregon), 0.0.0.0/0, tested from the VM; domain → Deep; then `bootstrap-vm.sh` |
+| A-13 | 3:45–5:15 PM | Go-live accounts (from P-04): Atlas, secrets.env, Vultr VM, domain + DNS, deploy key | `feat/aarya` | ✅ done (temp domain) | #49 · VM `wayout` 45.77.121.104 bootstrapped with `45-77-121-104.sslip.io` (from Deep; GoDaddy domain later for the prize); Atlas `wayout` tested; CI deploy key works. Yash: repo secrets + first deploy (D2-10) |
 
 ## How to work
 
@@ -38,3 +38,4 @@ can see where you are on `develop` after each merge.
 - 5:53 PM: #43 merged into `develop` (A-01–A-08). Added the Future of Work paragraph and prize opt-ins to `devpost.md`; Devpost now due **10:00 AM**, Aarya is the only editor.
 - 6:25 PM: Vultr VM `wayout` running at 45.77.121.104 on MLH credit ($20/mo). Docker + firewall installed. CI deploy key (`wayout-ci-deploy`) is on the VM; private half goes to Yash privately. Domain is Deep's (GoDaddy). `bootstrap-vm.sh` runs once the domain and `MONGODB_URI` exist.
 - 6:50 PM: Atlas ready: new org "Way Out SunHacks" (Aarya's old org didn't allow new projects), project `way-out`, free M0 `wayout` in us-west-2, network 0.0.0.0/0. Ping + write to `wayout_dev` from the VM passed. `MONGODB_URI` is in Aarya's local secrets.env (never committed). Only the domain is left before `bootstrap-vm.sh`.
+- 7:16 PM: `bootstrap-vm.sh` ran on the VM with the temporary domain `45-77-121-104.sslip.io` (Deep). `/opt/wayout` has `.env` + dev/staging/prod.env (mode 600). API URLs: `https://api-dev.45-77-121-104.sslip.io`, `api-staging.`, `api.`. Still missing keys: Gemini, Anthropic, FIRMS, Tiger Data, AWS/Bedrock. When the GoDaddy domain exists: re-run bootstrap with it (or edit `/opt/wayout/.env` + `PUBLIC_API_URL` in each env file).
