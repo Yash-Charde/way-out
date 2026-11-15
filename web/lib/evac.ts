@@ -49,6 +49,28 @@ export function slice(path: P3[], m0: number, m1: number): [number, number][] {
   return out;
 }
 
+const EARTH_M = 6_371_000;
+/** The fire front `minute` minutes after the warning, as a ring (empty before ignition). Matches the API's
+ *  api/hazard/spread.front, which is also what set every home's fire arrival time. */
+export function fireRing(model: NonNullable<Evacuation["fireModel"]>, minute: number, points = 96): [number, number][] {
+  const elapsed = minute - model.ignitionMin;
+  if (elapsed <= 0) return [];
+  const [lon0, lat0] = model.ignition;
+  const lat1 = (lat0 * Math.PI) / 180;
+  const lon1 = (lon0 * Math.PI) / 180;
+  const ring: [number, number][] = [];
+  for (let i = 0; i <= points; i++) {
+    const th = (2 * Math.PI * i) / points;
+    const speed = (model.headMPerMin * (1 - model.eccentricity)) / (1 - model.eccentricity * Math.cos(th));
+    const d = (elapsed * speed) / EARTH_M;
+    const b = ((model.downwindDeg + (th * 180) / Math.PI) * Math.PI) / 180;
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(b));
+    const lon2 = lon1 + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+    ring.push([(lon2 * 180) / Math.PI, (lat2 * 180) / Math.PI]);
+  }
+  return ring;
+}
+
 /** Counts at minute m, from the same timelines the map draws. */
 export function countsAt(data: Evacuation, prep: Prepared, m: number) {
   let waiting = 0,
@@ -74,7 +96,12 @@ export function countsAt(data: Evacuation, prep: Prepared, m: number) {
 
 /** deck.gl layers for minute m. `idPrefix` keeps two maps (hero + console) from sharing layer ids. */
 export function evacLayers(data: Evacuation, prep: Prepared, m: number, idPrefix = "evac", labels = true): Layer[] {
-  const frame = data.fire[Math.min(data.fire.length - 1, Math.max(0, Math.floor(m / 5)))];
+  // The front at exactly this minute (smooth), plus where it was 12 min ago: the band between is the
+  // active edge; inside is the burn scar.
+  const frame = data.fireModel
+    ? { ring: fireRing(data.fireModel, m) }
+    : data.fire[Math.min(data.fire.length - 1, Math.max(0, Math.floor(m / 5)))];
+  const scar = data.fireModel ? fireRing(data.fireModel, m - 12) : [];
   const movers: { path: [number, number][] }[] = [];
   const parked: [number, number][] = [];
   for (const s of prep.self) {
@@ -94,10 +121,18 @@ export function evacLayers(data: Evacuation, prep: Prepared, m: number, idPrefix
       id: `${idPrefix}-fire`,
       data: frame?.ring?.length ? [{ ring: frame.ring }] : [],
       getPolygon: (d) => d.ring,
-      getFillColor: [255, 92, 40, 110],
-      getLineColor: [255, 140, 60, 230],
-      lineWidthMinPixels: 2,
+      getFillColor: [255, 92, 40, 120], // the active band (burning now)
+      getLineColor: [255, 170, 70, 255],
+      lineWidthMinPixels: 3,
       stroked: true,
+      filled: true,
+    }),
+    new PolygonLayer<{ ring: [number, number][] }>({
+      id: `${idPrefix}-scar`,
+      data: scar.length ? [{ ring: scar }] : [],
+      getPolygon: (d) => d.ring,
+      getFillColor: [60, 18, 12, 170], // burned out
+      stroked: false,
       filled: true,
     }),
     new ScatterplotLayer<[number, number]>({

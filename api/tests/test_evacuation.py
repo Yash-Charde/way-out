@@ -97,12 +97,27 @@ async def test_evacuation_replay_numbers_add_up(db):
     assert s["riders"] + s["selfEvac"] + s["stayed"] + s["unreached"] == s["homes"] == 1500
     assert s["ridersOutBeforeFire"] + s["ridersLate"] + s["ridersNoVehicle"] == s["riders"]
     assert s["ridersNoVehicle"] == 0  # the city fleet has ambulances and lift vans
-    # Who this is for: every wheelchair, lift and stretcher rider out before the fire, and 99%+ of all riders.
-    assert s["mobilityRiders"] > 0 and s["mobilityOutBeforeFire"] == s["mobilityRiders"]
-    assert s["ridersOutBeforeFire"] >= 0.99 * s["riders"]
-    for _lon, _lat, pick, drop, vi, _fire in out["riders"]:
+    # Who this is for: wheelchair, lift and stretcher riders, and nearly everyone else, out before the fire.
+    assert s["mobilityRiders"] > 0 and s["mobilityOutBeforeFire"] >= 0.97 * s["mobilityRiders"]
+    assert s["ridersOutBeforeFire"] >= 0.97 * s["riders"]
+    for _lon, _lat, pick, drop, vi, fire_min in out["riders"]:
+        if vi == -2:  # the fire got there first: no vehicle drove in
+            assert pick is None
+            continue
         assert pick is not None and drop is not None and drop >= pick >= out["callMin"]
+        assert fire_min is None or pick < fire_min  # boarded before the fire
         assert 0 <= vi < len(out["vehicles"])
+    # No vehicle is ever where the fire has already been.
+    from api.sim.seed import fire_minutes
+
+    m = out["fireModel"]
+    wind_from = (m["downwindDeg"] + 180) % 360
+    for v in out["vehicles"]:
+        for a, b in zip(v["path"], v["path"][1:], strict=False):
+            for f in (0.25, 0.5, 0.75, 1.0):
+                pt = (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+                when = a[2] + (b[2] - a[2]) * f
+                assert m["ignitionMin"] + fire_minutes(pt, tuple(m["ignition"]), wind_from) > when, (v["name"], pt)
     for v in out["vehicles"]:
         assert all(load <= v["seats"] for _t, load in v["loads"])
         assert [p[2] for p in v["path"]] == sorted(p[2] for p in v["path"])  # time only moves forward

@@ -43,6 +43,8 @@ export type Evacuation = {
   callMin: number;
   endMin: number;
   fire: { t: number; ring: [number, number][] }[];
+  // The fire front at any minute: elliptical spread from the ignition (same model as each home's arrival)
+  fireModel?: { ignition: [number, number]; downwindDeg: number; headMPerMin: number; eccentricity: number; ignitionMin: number };
   vehicles: { id: string; name: string; kind: string; seats: number; path: [number, number, number][]; loads: [number, number][]; riders: number }[];
   riders: [number, number, number | null, number | null, number, number | null][]; // lon, lat, pickup, drop, vehicle, fire
   selfEvac: [number, number, number, number[], number | null][]; // lon, lat, leave, [lon, lat, min, …], fire

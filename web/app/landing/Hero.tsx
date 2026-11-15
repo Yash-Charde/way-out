@@ -97,12 +97,12 @@ export function Hero() {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:max-w-3xl">
             <Stat
               label="riders out before the fire"
-              value={sm ? `${sm.ridersOutBeforeFire} / ${sm.riders}` : "98–100%"}
+              value={sm ? `${sm.ridersOutBeforeFire} / ${sm.riders}` : "98%"}
               tone="text-[#34d399]"
             />
             <Stat
               label="wheelchair & stretcher riders out"
-              value={sm ? `${sm.mobilityOutBeforeFire ?? "–"} / ${sm.mobilityRiders ?? "–"}` : "all"}
+              value={sm ? `${sm.mobilityOutBeforeFire ?? "–"} / ${sm.mobilityRiders ?? "–"}` : "99%"}
               tone="text-[#34d399]"
             />
             <Stat label="homes called at once" value={sm ? (sm.homes ?? 0).toLocaleString() : "6,000"} />

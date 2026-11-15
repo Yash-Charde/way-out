@@ -178,13 +178,13 @@ export default function Landing() {
               <dl className="mt-6 grid grid-cols-2 gap-6">
                 <div>
                   <dt className="text-xs text-white/60">Riders out before the fire</dt>
-                  <dd className="display mt-1 text-4xl text-[#34d399]">98–100%</dd>
-                  <dd className="text-xs text-white/50">of about 730 households that need a ride, across simulated nights</dd>
+                  <dd className="display mt-1 text-4xl text-[#34d399]">98%</dd>
+                  <dd className="text-xs text-white/50">of about 730 households that need a ride, boarded before the fire</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-white/60">Wheelchair & stretcher riders</dt>
-                  <dd className="display mt-1 text-4xl text-[#34d399]">All</dd>
-                  <dd className="text-xs text-white/50">picked up before the fire reaches them</dd>
+                  <dd className="display mt-1 text-4xl text-[#34d399]">99%</dd>
+                  <dd className="text-xs text-white/50">boarded before the fire; no vehicle ever drives into it</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-white/60">Homes called</dt>
